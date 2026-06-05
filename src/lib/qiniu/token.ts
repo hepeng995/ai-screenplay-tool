@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 七牛云 Upload Token 生成（Edge Runtime 兼容）
  * T3.1: 服务端生成上传凭证，SK 不暴露到客户端
  *
@@ -21,7 +21,9 @@ interface PutPolicy {
 
 /**
  * URL-safe Base64 编码（七牛云规范）
- * 将 + 替换为 -，/ 替换为 _，去掉 = 填充
+ * 将 + 替换为 -，/ 替换为 _，保留 = 填充
+ *
+ * NOTE: 七牛云要求保留 base64 填充字符 "="
  */
 function urlSafeBase64Encode(data: Uint8Array): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
@@ -42,6 +44,14 @@ function urlSafeBase64Encode(data: Uint8Array): string {
     if (byte3 >= 0) {
       result += chars[byte3 & 0x3f];
     }
+  }
+
+  // 添加 base64 标准填充
+  const padding = data.length % 3;
+  if (padding === 1) {
+    result += '==';
+  } else if (padding === 2) {
+    result += '=';
   }
 
   return result;
@@ -97,7 +107,7 @@ export async function generateUploadToken(
     fsizeLimit: 10 * 1024 * 1024, // 10MB
   };
 
-  // 编码 putPolicy → URL-safe Base64
+  // 编码 putPolicy → URL-safe Base64（保留 = 填充）
   const encodedPolicy = urlSafeBase64Encode(
     new TextEncoder().encode(JSON.stringify(putPolicy)),
   );
