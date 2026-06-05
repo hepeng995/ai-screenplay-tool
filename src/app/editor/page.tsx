@@ -11,6 +11,7 @@ import { YamlPreview } from '@/components/editor/YamlPreview';
 import { loadYamlContent, saveYamlContent, loadProject, saveProject } from '@/lib/utils/storage';
 import { uploadToQiniu } from '@/lib/qiniu/upload';
 import { downloadFromQiniu } from '@/lib/qiniu/download';
+import { toast } from '@/lib/utils/toast';
 
 function EditorContent() {
   const searchParams = useSearchParams();
@@ -76,7 +77,7 @@ function EditorContent() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert('YAML 解析失败，无法导出 JSON：' + (e instanceof Error ? e.message : String(e)));
+      toast.error('YAML 解析失败，无法导出 JSON：' + (e instanceof Error ? e.message : String(e)));
     }
     setShowExportMenu(false);
   }, [yamlContent, projectId]);
@@ -97,6 +98,7 @@ function EditorContent() {
     if (result.success) {
       setCloudStatus('success');
       setCloudMessage(`上传成功！文件Key: ${result.key}`);
+      toast.success('上传成功！');
       // 更新项目的 qiniuKey
       const project = loadProject(projectId);
       if (project) {
@@ -107,6 +109,7 @@ function EditorContent() {
     } else {
       setCloudStatus('error');
       setCloudMessage(result.error ?? '上传失败');
+      toast.error(result.error ?? '上传失败');
       setTimeout(() => { setCloudStatus('idle'); setCloudMessage(''); }, 5000);
     }
   }, [projectId, yamlContent]);
@@ -132,10 +135,12 @@ function EditorContent() {
       saveYamlContent(projectId, result.content);
       setCloudStatus('success');
       setCloudMessage('下载成功！已载入编辑器。');
+      toast.success('下载成功！已载入编辑器。');
       setTimeout(() => { setCloudStatus('idle'); setCloudMessage(''); }, 3000);
     } else {
       setCloudStatus('error');
       setCloudMessage(result.error ?? '下载失败');
+      toast.error(result.error ?? '下载失败');
       setTimeout(() => { setCloudStatus('idle'); setCloudMessage(''); }, 5000);
     }
   }, [projectId]);
