@@ -111,4 +111,86 @@ describe('FileUploader 组件', () => {
     expect(mockSaveNovelText).toHaveBeenCalledWith('test-uuid', 'abc');
     expect(mockPush).toHaveBeenCalledWith(expect.stringContaining('/convert?fileId='));
   });
+
+  it('文件超过 10MB 被拒绝', async () => {
+    render(<FileUploader />);
+    const zone = screen.getByTestId('upload-zone');
+
+    // 构造 11MB 文件
+    const largeContent = 'x'.repeat(11 * 1024 * 1024);
+    const file = new File([largeContent], 'huge.txt', { type: 'text/plain' });
+    fireEvent.drop(zone, {
+      dataTransfer: { files: [file] },
+    });
+
+    await waitFor(() => {
+      const errorEl = screen.queryByTestId('error-message');
+      expect(errorEl).not.toBeNull();
+      expect(errorEl?.textContent).toContain('10MB');
+    });
+  });
+
+  it('文件内容为空时显示错误', async () => {
+    render(<FileUploader />);
+    const zone = screen.getByTestId('upload-zone');
+
+    // 空内容文件
+    const file = new File([''], 'empty.txt', { type: 'text/plain' });
+    fireEvent.drop(zone, {
+      dataTransfer: { files: [file] },
+    });
+
+    await waitFor(() => {
+      const errorEl = screen.queryByTestId('error-message');
+      expect(errorEl).not.toBeNull();
+      expect(errorEl?.textContent).toContain('空');
+    });
+  });
+
+  it('通过 input onChange 选择文件也能正确处理', async () => {
+    render(<FileUploader />);
+
+    // 找到隐藏的 input[type=file]
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input).toBeTruthy();
+
+    const file = new File(['hello world'], 'via-input.txt', { type: 'text/plain' });
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('file-info')).toBeTruthy();
+      expect(screen.getByTestId('file-name').textContent).toBe('via-input.txt');
+    });
+  });
+
+  it('FileReader onerror 不崩溃并显示错误', async () => {
+    // 模拟 FileReader 报错
+    const originalFileReader = globalThis.FileReader;
+    globalThis.FileReader = vi.fn(() => ({
+      onload: null,
+      onerror: null,
+      readAsText: function () {
+        // 异步触发 onerror
+        setTimeout(() => {
+          const handler = this.onerror as ((e: Event) => void) | null;
+          if (handler) handler(new Event('error'));
+        }, 0);
+      },
+    })) as any;
+
+    render(<FileUploader />);
+    const zone = screen.getByTestId('upload-zone');
+
+    const file = new File(['content'], 'error.txt', { type: 'text/plain' });
+    fireEvent.drop(zone, { dataTransfer: { files: [file] } });
+
+    await waitFor(() => {
+      const errorEl = screen.queryByTestId('error-message');
+      expect(errorEl).not.toBeNull();
+      expect(errorEl?.textContent).toContain('读取失败');
+    });
+
+    // 恢复原始 FileReader
+    globalThis.FileReader = originalFileReader;
+  });
 });
