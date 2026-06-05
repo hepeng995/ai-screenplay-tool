@@ -1,10 +1,8 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import yaml from 'js-yaml';
 import { ChevronDown, ChevronRight, Users, Film, MessageSquare, Layers } from 'lucide-react';
-import { useState } from 'react';
-import type { Script } from '@/schema/script.schema';
 
 interface YamlPreviewProps {
   yamlContent: string;
@@ -20,15 +18,31 @@ export function YamlPreview({ yamlContent }: YamlPreviewProps) {
     }
 
     try {
-      const data = yaml.load(yamlContent) as Script;
-      if (!data || typeof data !== 'object') {
+      // 安全解析：不使用 as Script，使用运行时类型守卫
+      const raw = yaml.load(yamlContent);
+      if (!raw || typeof raw !== 'object') {
         return { parsed: null, stats: null, error: 'YAML 解析结果不是对象' };
       }
+      const data = raw as Record<string, unknown>;
 
-      const acts = data.acts ?? [];
-      const scenes = acts.flatMap((a) => a.scenes ?? []);
-      const dialogues = scenes.flatMap((s) => s.dialogues ?? []);
-      const characters = new Set(dialogues.map((d) => d.character).filter(Boolean));
+      // 安全访问数组字段，运行时校验
+      const acts = Array.isArray(data.acts) ? data.acts : [];
+      const scenes = acts.flatMap((a) => {
+        const obj = a as Record<string, unknown>;
+        return Array.isArray(obj.scenes) ? obj.scenes : [];
+      });
+      const dialogues = scenes.flatMap((s) => {
+        const obj = s as Record<string, unknown>;
+        return Array.isArray(obj.dialogues) ? obj.dialogues : [];
+      });
+      const characters = new Set(
+        dialogues
+          .map((d) => {
+            const obj = d as Record<string, unknown>;
+            return typeof obj.character === 'string' ? obj.character : '';
+          })
+          .filter(Boolean)
+      );
 
       return {
         parsed: data,
@@ -89,24 +103,30 @@ export function YamlPreview({ yamlContent }: YamlPreviewProps) {
       </div>
 
       {/* 剧本信息 */}
-      {parsed.script && (
-        <div className="rounded-lg bg-indigo-50 p-3">
-          <h3 data-testid="preview-title" className="font-bold text-slate-900">
-            {parsed.script.title ?? '未命名'}
-          </h3>
-          {parsed.metadata?.summary && (
-            <p className="mt-1 text-sm text-slate-600">{parsed.metadata.summary}</p>
-          )}
-          {parsed.metadata?.genre && (
-            <span className="mt-1 inline-block text-xs text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded">
-              {parsed.metadata.genre}
-            </span>
-          )}
-        </div>
-      )}
+      {(() => {
+        const script = parsed.script as Record<string, unknown> | undefined;
+        const metadata = parsed.metadata as Record<string, unknown> | undefined;
+        if (!script) return null;
+        return (
+          <div className="rounded-lg bg-indigo-50 p-3">
+            <h3 data-testid="preview-title" className="font-bold text-slate-900">
+              {typeof script.title === 'string' ? script.title : '未命名'}
+            </h3>
+            {metadata && typeof metadata.summary === 'string' && (
+              <p className="mt-1 text-sm text-slate-600">{metadata.summary}</p>
+            )}
+            {metadata && typeof metadata.genre === 'string' && (
+              <span className="mt-1 inline-block text-xs text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded">
+                {metadata.genre}
+              </span>
+            )}
+          </div>
+        );
+      })()}
 
       {/* 幕/场/台词 树 */}
-      {parsed.acts?.map((act, actIdx) => {
+      {(Array.isArray(parsed.acts) ? parsed.acts : []).map((actRaw, actIdx) => {
+        const act = actRaw as Record<string, unknown>;
         const actExpanded = expandedActs.has(actIdx);
         return (
           <div key={actIdx} data-testid={`tree-act-${actIdx}`} className="rounded-lg border border-slate-200">
@@ -115,11 +135,14 @@ export function YamlPreview({ yamlContent }: YamlPreviewProps) {
               className="flex w-full items-center gap-2 p-3 hover:bg-slate-50 rounded-t-lg"
             >
               {actExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-              <span className="font-medium text-slate-900">{act.title ?? `第 ${actIdx + 1} 幕`}</span>
+              <span className="font-medium text-slate-900">
+                {typeof act.title === 'string' ? act.title : `第 ${actIdx + 1} 幕`}
+              </span>
             </button>
             {actExpanded && (
               <div className="px-3 pb-3 space-y-2">
-                {act.scenes?.map((scene, sceneIdx) => {
+                {(Array.isArray(act.scenes) ? act.scenes : []).map((sceneRaw, sceneIdx) => {
+                  const scene = sceneRaw as Record<string, unknown>;
                   const sceneKey = `${actIdx}-${sceneIdx}`;
                   const sceneExpanded = expandedScenes.has(sceneKey);
                   return (
@@ -130,22 +153,28 @@ export function YamlPreview({ yamlContent }: YamlPreviewProps) {
                       >
                         {sceneExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                         <span className="text-sm font-medium text-slate-700">
-                          {`场景 ${scene.scene_number ?? sceneIdx + 1}`}
+                          {`场景 ${typeof scene.scene_number === 'number' ? scene.scene_number : sceneIdx + 1}`}
                         </span>
-                        {scene.location && (
+                        {typeof scene.location === 'string' && (
                           <span className="text-xs text-slate-400">@ {scene.location}</span>
                         )}
                       </button>
-                      {sceneExpanded && scene.dialogues && (
+                      {sceneExpanded && Array.isArray(scene.dialogues) && (
                         <div className="mt-2 ml-4 space-y-1">
-                          {scene.dialogues.map((d, dIdx) => (
-                            <div key={dIdx} className="text-xs">
-                              <span className={`font-medium ${d.type === '旁白' ? 'text-slate-400 italic' : 'text-indigo-600'}`}>
-                                {d.character}（{d.type}）
-                              </span>
-                              <span className="ml-2 text-slate-600">{d.content}</span>
-                            </div>
-                          ))}
+                          {scene.dialogues.map((dRaw, dIdx) => {
+                            const d = dRaw as Record<string, unknown>;
+                            const character = typeof d.character === 'string' ? d.character : '';
+                            const type = typeof d.type === 'string' ? d.type : '';
+                            const content = typeof d.content === 'string' ? d.content : '';
+                            return (
+                              <div key={dIdx} className="text-xs">
+                                <span className={`font-medium ${type === '旁白' ? 'text-slate-400 italic' : 'text-indigo-600'}`}>
+                                  {character}（{type}）
+                                </span>
+                                <span className="ml-2 text-slate-600">{content}</span>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
