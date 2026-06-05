@@ -138,4 +138,52 @@ describe('YamlEditor 组件', () => {
     // 错误详情展示
     expect(screen.queryByTestId('error-detail')).not.toBeNull();
   });
+
+  it('行号数量与内容行数一致', () => {
+    // 空字符串 → 1 行号
+    const { rerender } = render(<YamlEditor value="" onChange={() => {}} />);
+    let lineNumbers = document.querySelector('[aria-hidden="true"]');
+    expect(lineNumbers?.children.length).toBe(1);
+
+    // 2 行内容 → 2 行号
+    rerender(<YamlEditor value={'line1\nline2'} onChange={() => {}} />);
+    lineNumbers = document.querySelector('[aria-hidden="true"]');
+    expect(lineNumbers?.children.length).toBe(2);
+
+    // 尾部换行 → 仍然 2 行号（不产生幽灵行号）
+    rerender(<YamlEditor value={'line1\nline2\n'} onChange={() => {}} />);
+    lineNumbers = document.querySelector('[aria-hidden="true"]');
+    expect(lineNumbers?.children.length).toBe(2);
+  });
+
+  it('textarea 滚动时行号容器 transform 同步更新', () => {
+    render(<YamlEditor value={'line1\nline2\nline3'} onChange={() => {}} />);
+
+    const textarea = screen.getByTestId('yaml-editor') as HTMLTextAreaElement;
+    const lineNumbersDiv = document.querySelector('[aria-hidden="true"]') as HTMLDivElement;
+
+    // 初始 transform 应为空
+    expect(lineNumbersDiv.style.transform).toBe('');
+
+    // 模拟滚动
+    fireEvent.scroll(textarea, { target: { scrollTop: 100 } });
+
+    // 行号容器的 transform 应立即更新（ref 直操作 DOM）
+    expect(lineNumbersDiv.style.transform).toContain('translateY');
+    expect(lineNumbersDiv.style.transform).toContain('-100');
+  });
+
+  it('不传 onSave 时 Ctrl+S 不抛错', () => {
+    render(<YamlEditor value="" onChange={() => {}} />);
+
+    const event = new KeyboardEvent('keydown', {
+      key: 's',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    // 不应抛出异常（onSave?.() 可选链保护）
+    expect(() => window.dispatchEvent(event)).not.toThrow();
+  });
 });
