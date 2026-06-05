@@ -1,0 +1,48 @@
+# PR 自动标签配置
+# 规则：按修改的文件路径自动打标签
+# 由 .github/workflows/labeler.yml 触发
+
+type/feature:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/app/**'
+          - 'src/components/**'
+          - 'src/lib/**'
+
+type/test:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/**/__tests__/**'
+          - 'e2e/**'
+          - 'vitest.config.ts'
+          - 'playwright.config.ts'
+
+type/docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'docs/**'
+          - '*.md'
+          - 'README.md'
+
+type/ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**'
+          - '.github/workflows/**'
+
+type/security:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/lib/qiniu/**'
+          - 'src/app/api/**'
+          - 'docs/security-model.md'
+
+type/chore:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'package.json'
+          - 'package-lock.json'
+          - '.gitignore'
+          - 'tsconfig.json'
+          - 'next.config.js'
+          - 'tailwind.config.ts'
