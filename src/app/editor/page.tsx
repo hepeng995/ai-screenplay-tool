@@ -164,7 +164,7 @@ function EditorContent() {
   return (
     <div className="mx-auto max-w-7xl px-6 py-8">
       {/* 顶部工具栏 */}
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">YAML 剧本编辑器</h1>
           <p className="text-sm text-slate-500">在线编辑 · 实时校验 · 多格式导出 · 云端同步</p>
@@ -236,10 +236,11 @@ function EditorContent() {
         </div>
       </div>
 
-      {/* 编辑 + 预览 双栏 */}
-      <div className="grid grid-cols-2 gap-4 h-[calc(100vh-200px)]">
+      {/* 编辑 + 预览 双栏：小屏单栏堆叠，lg 及以上双栏并排 */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:h-[calc(100vh-200px)]">
+        {/* 移动端给每个卡片一个合适的高度，桌面端由 grid 高度驱动 */}
         {/* 编辑区 */}
-        <Card className="flex flex-col overflow-hidden">
+        <Card className="flex flex-col overflow-hidden h-[60vh] lg:h-auto">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
               <Edit3 className="h-4 w-4 text-slate-400" />
@@ -253,7 +254,7 @@ function EditorContent() {
         </Card>
 
         {/* 预览区 */}
-        <Card className="flex flex-col overflow-hidden">
+        <Card className="flex flex-col overflow-hidden h-[60vh] lg:h-auto">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">预览区</CardTitle>
             <CardDescription>结构化树形预览 + 统计信息</CardDescription>

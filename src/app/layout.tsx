@@ -16,7 +16,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN">
-      <body className="min-w-[1024px] bg-slate-50 text-slate-900 antialiased">
+      <body className="min-h-screen bg-slate-50 text-slate-900 antialiased">
         <Header />
         <main className="min-h-[calc(100vh-112px)]">{children}</main>
         <Footer />

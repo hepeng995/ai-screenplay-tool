@@ -111,7 +111,7 @@ function ConvertContent() {
                 <span>{splitError}</span>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                 {chapters.map((ch, idx) => (
                   <div
                     key={idx}

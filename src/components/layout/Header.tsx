@@ -37,9 +37,11 @@ export function Header() {
                     ? 'text-indigo-600 bg-indigo-50'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100',
                 )}
+                aria-label={label}
               >
                 <Icon className="h-4 w-4" />
-                {label}
+                {/* 小屏只显示图标，sm 及以上显示完整文字 */}
+                <span className="hidden sm:inline">{label}</span>
               </Link>
             );
           })}

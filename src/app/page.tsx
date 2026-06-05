@@ -142,7 +142,7 @@ export default function Home() {
       </section>
 
       {/* 特性卡片 */}
-      <section className="grid grid-cols-3 gap-6 mt-8">
+      <section className="grid grid-cols-1 gap-6 mt-8 md:grid-cols-3">
         {features.map(({ icon: Icon, title, desc }) => (
           <Card key={title}>
             <CardHeader>
