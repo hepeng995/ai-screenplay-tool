@@ -1,4 +1,4 @@
-# AI 剧本工坊 (AI Screenplay Workshop)
+﻿# AI 剧本工坊 (AI Screenplay Workshop)
 
 > 将小说文本自动转换为结构化 YAML 剧本的 AI 辅助创作工具。
 
@@ -79,7 +79,7 @@ npx playwright test  # E2E 测试
 
 ## 🌐 部署地址
 
-> 📌 部署完成后将在此放置 Vercel URL
+**https://ai-screenplay-tool.vercel.app/**
 
 ## 📦 第三方依赖列表
 
