@@ -3,12 +3,14 @@
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import yaml from 'js-yaml';
-import { Edit3, Download, Save, Upload as UploadIcon, FileJson, FileText } from 'lucide-react';
+import { Edit3, Download, Save, Upload as UploadIcon, FileJson, FileText, CloudUpload, CloudDownload } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { YamlEditor } from '@/components/editor/YamlEditor';
 import { YamlPreview } from '@/components/editor/YamlPreview';
 import { loadYamlContent, saveYamlContent, loadProject, saveProject } from '@/lib/utils/storage';
+import { uploadToQiniu } from '@/lib/qiniu/upload';
+import { downloadFromQiniu } from '@/lib/qiniu/download';
 
 function EditorContent() {
   const searchParams = useSearchParams();
@@ -17,6 +19,8 @@ function EditorContent() {
   const [yamlContent, setYamlContent] = useState('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [cloudStatus, setCloudStatus] = useState<'idle' | 'uploading' | 'downloading' | 'success' | 'error'>('idle');
+  const [cloudMessage, setCloudMessage] = useState<string>('');
 
   // 加载 YAML 内容
   useEffect(() => {
@@ -77,17 +81,81 @@ function EditorContent() {
     setShowExportMenu(false);
   }, [yamlContent, projectId]);
 
+  // 七牛云上传
+  const handleCloudUpload = useCallback(async () => {
+    if (!projectId || !yamlContent) return;
+    setCloudStatus('uploading');
+    setCloudMessage('正在上传到七牛云...');
+
+    const fileName = `scripts/${projectId}/script-${new Date().toISOString().slice(0, 10)}.yaml`;
+    const result = await uploadToQiniu(yamlContent, fileName, {
+      onProgress: (pct) => {
+        setCloudMessage(`上传进度: ${pct}%`);
+      },
+    });
+
+    if (result.success) {
+      setCloudStatus('success');
+      setCloudMessage(`上传成功！文件Key: ${result.key}`);
+      // 更新项目的 qiniuKey
+      const project = loadProject(projectId);
+      if (project) {
+        project.qiniuKey = result.key;
+        saveProject(project);
+      }
+      setTimeout(() => { setCloudStatus('idle'); setCloudMessage(''); }, 3000);
+    } else {
+      setCloudStatus('error');
+      setCloudMessage(result.error ?? '上传失败');
+      setTimeout(() => { setCloudStatus('idle'); setCloudMessage(''); }, 5000);
+    }
+  }, [projectId, yamlContent]);
+
+  // 七牛云下载
+  const handleCloudDownload = useCallback(async () => {
+    if (!projectId) return;
+    const project = loadProject(projectId);
+    if (!project?.qiniuKey) {
+      setCloudStatus('error');
+      setCloudMessage('未找到云端文件记录');
+      setTimeout(() => { setCloudStatus('idle'); setCloudMessage(''); }, 3000);
+      return;
+    }
+
+    setCloudStatus('downloading');
+    setCloudMessage('正在从七牛云下载...');
+
+    const result = await downloadFromQiniu(project.qiniuKey);
+
+    if (result.success && result.content) {
+      setYamlContent(result.content);
+      saveYamlContent(projectId, result.content);
+      setCloudStatus('success');
+      setCloudMessage('下载成功！已载入编辑器。');
+      setTimeout(() => { setCloudStatus('idle'); setCloudMessage(''); }, 3000);
+    } else {
+      setCloudStatus('error');
+      setCloudMessage(result.error ?? '下载失败');
+      setTimeout(() => { setCloudStatus('idle'); setCloudMessage(''); }, 5000);
+    }
+  }, [projectId]);
+
   return (
     <div className="mx-auto max-w-7xl px-6 py-8">
       {/* 顶部工具栏 */}
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">YAML 剧本编辑器</h1>
-          <p className="text-sm text-slate-500">在线编辑 · 实时校验 · 多格式导出</p>
+          <p className="text-sm text-slate-500">在线编辑 · 实时校验 · 多格式导出 · 云端同步</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {saveStatus === 'saved' && (
             <span className="text-xs text-green-600">已保存</span>
+          )}
+          {cloudMessage && (
+            <span data-testid="cloud-status" className={`text-xs ${cloudStatus === 'error' ? 'text-red-600' : cloudStatus === 'success' ? 'text-green-600' : 'text-blue-600'}`}>
+              {cloudMessage}
+            </span>
           )}
           <Button variant="outline" size="sm" onClick={handleManualSave} className="gap-1.5">
             <Save className="h-3.5 w-3.5" />
@@ -118,9 +186,27 @@ function EditorContent() {
               </div>
             )}
           </div>
-          <Button variant="outline" size="sm" disabled className="gap-1.5" title="七牛云上传（待实现）">
-            <UploadIcon className="h-3.5 w-3.5" />
-            上传云端
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCloudUpload}
+            disabled={cloudStatus === 'uploading' || cloudStatus === 'downloading' || !yamlContent}
+            className="gap-1.5"
+            title="上传到七牛云"
+          >
+            <CloudUpload className="h-3.5 w-3.5" />
+            {cloudStatus === 'uploading' ? '上传中...' : '上传云端'}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCloudDownload}
+            disabled={cloudStatus === 'uploading' || cloudStatus === 'downloading'}
+            className="gap-1.5"
+            title="从七牛云载入"
+          >
+            <CloudDownload className="h-3.5 w-3.5" />
+            {cloudStatus === 'downloading' ? '下载中...' : '云端载入'}
           </Button>
         </div>
       </div>
