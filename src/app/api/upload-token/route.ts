@@ -5,27 +5,20 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { generateUploadToken } from '@/lib/qiniu/token';
+import { withErrorHandler } from '@/lib/api/error-handler';
 
 export const runtime = 'edge';
 
-export async function GET(request: NextRequest) {
-  try {
-    const key = request.nextUrl.searchParams.get('key') ?? undefined;
+export const GET = withErrorHandler<NextRequest>(async (request) => {
+  const key = request.nextUrl.searchParams.get('key') ?? undefined;
 
-    const { token, expiresAt } = await generateUploadToken(key);
+  const { token, expiresAt } = await generateUploadToken(key);
 
-    return NextResponse.json({
-      success: true,
-      token,
-      expiresAt,
-      // 七牛云上传地址（华南 z2 区域）
-      uploadUrl: 'https://upload-z2.qiniup.com',
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : '生成上传 Token 失败';
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 },
-    );
-  }
-}
+  return NextResponse.json({
+    success: true,
+    token,
+    expiresAt,
+    // 七牛云上传地址（华南 z2 区域）
+    uploadUrl: 'https://upload-z2.qiniup.com',
+  });
+});

@@ -5,31 +5,24 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { generateDownloadUrl } from '@/lib/qiniu/token';
+import { withErrorHandler } from '@/lib/api/error-handler';
 
 export const runtime = 'edge';
 
-export async function GET(request: NextRequest) {
-  try {
-    const key = request.nextUrl.searchParams.get('key');
+export const GET = withErrorHandler<NextRequest>(async (request) => {
+  const key = request.nextUrl.searchParams.get('key');
 
-    if (!key) {
-      return NextResponse.json(
-        { success: false, error: '缺少文件 key 参数' },
-        { status: 400 },
-      );
-    }
-
-    const url = await generateDownloadUrl(key);
-
-    return NextResponse.json({
-      success: true,
-      url,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : '生成下载 URL 失败';
+  if (!key) {
     return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 },
+      { success: false, error: '缺少文件 key 参数' },
+      { status: 400 },
     );
   }
-}
+
+  const url = await generateDownloadUrl(key);
+
+  return NextResponse.json({
+    success: true,
+    url,
+  });
+});
