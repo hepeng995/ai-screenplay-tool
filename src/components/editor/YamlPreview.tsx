@@ -4,30 +4,10 @@ import { useMemo } from 'react';
 import yaml from 'js-yaml';
 import { ChevronDown, ChevronRight, Users, Film, MessageSquare, Layers } from 'lucide-react';
 import { useState } from 'react';
+import type { Script } from '@/schema/script.schema';
 
 interface YamlPreviewProps {
   yamlContent: string;
-}
-
-interface ParsedData {
-  script?: {
-    title?: string;
-    genre?: string;
-    logline?: string;
-  };
-  acts?: Array<{
-    title?: string;
-    scenes?: Array<{
-      title?: string;
-      location?: string;
-      timeOfDay?: string;
-      dialogues?: Array<{
-        character?: string;
-        type?: string;
-        content?: string;
-      }>;
-    }>;
-  }>;
 }
 
 export function YamlPreview({ yamlContent }: YamlPreviewProps) {
@@ -40,7 +20,7 @@ export function YamlPreview({ yamlContent }: YamlPreviewProps) {
     }
 
     try {
-      const data = yaml.load(yamlContent) as ParsedData;
+      const data = yaml.load(yamlContent) as Script;
       if (!data || typeof data !== 'object') {
         return { parsed: null, stats: null, error: 'YAML 解析结果不是对象' };
       }
@@ -114,8 +94,13 @@ export function YamlPreview({ yamlContent }: YamlPreviewProps) {
           <h3 data-testid="preview-title" className="font-bold text-slate-900">
             {parsed.script.title ?? '未命名'}
           </h3>
-          {parsed.script.logline && (
-            <p className="mt-1 text-sm text-slate-600">{parsed.script.logline}</p>
+          {parsed.metadata?.summary && (
+            <p className="mt-1 text-sm text-slate-600">{parsed.metadata.summary}</p>
+          )}
+          {parsed.metadata?.genre && (
+            <span className="mt-1 inline-block text-xs text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded">
+              {parsed.metadata.genre}
+            </span>
           )}
         </div>
       )}
@@ -145,7 +130,7 @@ export function YamlPreview({ yamlContent }: YamlPreviewProps) {
                       >
                         {sceneExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                         <span className="text-sm font-medium text-slate-700">
-                          {scene.title ?? `场景 ${sceneIdx + 1}`}
+                          {`场景 ${scene.scene_number ?? sceneIdx + 1}`}
                         </span>
                         {scene.location && (
                           <span className="text-xs text-slate-400">@ {scene.location}</span>
