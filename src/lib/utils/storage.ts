@@ -132,3 +132,62 @@ export function loadYamlContent(id: string): string | null {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem(`yaml-${id}`);
 }
+
+/* ========== 项目导入/导出 ========== */
+
+/** 导出数据格式 */
+export interface ExportData {
+  version: 1;
+  exportedAt: string;
+  projects: Array<{
+    project: Project;
+    novelText: string | null;
+    yamlContent: string | null;
+  }>;
+}
+
+/**
+ * 导出指定项目为 JSON 字符串
+ * 包含项目元信息、小说原文、YAML 剧本
+ */
+export function exportProjects(ids: string[]): string {
+  const data: ExportData = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    projects: ids.map((id) => ({
+      project: loadProject(id),
+      novelText: loadNovelText(id),
+      yamlContent: loadYamlContent(id),
+    })).filter((item) => item.project !== null) as ExportData['projects'],
+  };
+  return JSON.stringify(data, null, 2);
+}
+
+/**
+ * 导入项目数据
+ * @returns 导入的项目数量
+ */
+export function importProjects(jsonStr: string): number {
+  const data = JSON.parse(jsonStr) as ExportData;
+  if (!data.projects || !Array.isArray(data.projects)) {
+    throw new Error('无效的导入文件格式');
+  }
+
+  let count = 0;
+  for (const item of data.projects) {
+    if (!item.project?.id || !item.project?.name) continue;
+
+    // 检查是否已存在同名项目，避免重复导入
+    const existing = loadProject(item.project.id);
+    if (existing) {
+      // 已存在则跳过，不覆盖
+      continue;
+    }
+
+    saveProject(item.project);
+    if (item.novelText) saveNovelText(item.project.id, item.novelText);
+    if (item.yamlContent) saveYamlContent(item.project.id, item.yamlContent);
+    count++;
+  }
+  return count;
+}

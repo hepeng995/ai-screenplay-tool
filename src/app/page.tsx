@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Scissors,
   Sparkles,
@@ -14,12 +14,14 @@ import {
   X,
   Check,
   Play,
+  Download,
+  Upload,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { toast } from '@/lib/utils/toast';
-import { deleteProject, renameProject, listProjects, createProject, saveYamlContent, type Project } from '@/lib/utils/storage';
+import { deleteProject, renameProject, listProjects, createProject, saveYamlContent, exportProjects, importProjects, type Project } from '@/lib/utils/storage';
 
 interface RecentProject {
   id: string;
@@ -160,6 +162,8 @@ export default function Home() {
   const [renameId, setRenameId] = useState<string | null>(null);
   // 重命名输入值
   const [renameValue, setRenameValue] = useState('');
+  // 导入文件 ref
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   /**
    * 从 localStorage 加载项目列表
@@ -220,6 +224,44 @@ export default function Home() {
     toast.success('已删除');
   };
 
+  /** 导出所有项目 */
+  const handleExportAll = () => {
+    const ids = recentProjects.map((p) => p.id);
+    if (ids.length === 0) {
+      toast.info('没有可导出的项目');
+      return;
+    }
+    const json = exportProjects(ids);
+    const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ai-screenplay-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`已导出 ${ids.length} 个项目`);
+  };
+
+  /** 导入项目 */
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const text = evt.target?.result as string;
+        const count = importProjects(text);
+        loadProjects();
+        toast.success(`成功导入 ${count} 个项目`);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : '导入失败，文件格式无效');
+      }
+    };
+    reader.readAsText(file);
+    // 清空 input 以支持重复导入同一文件
+    e.target.value = '';
+  };
+
   return (
     <div className="mx-auto max-w-6xl px-6 py-12">
       {/* Hero 区域 */}
@@ -276,9 +318,30 @@ export default function Home() {
 
       {/* 最近项目 */}
       <section className="mt-12">
-        <div className="flex items-center gap-2 mb-4">
-          <FolderOpen className="h-5 w-5 text-slate-400" />
-          <h2 className="text-xl font-semibold text-slate-900">最近项目</h2>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <FolderOpen className="h-5 w-5 text-slate-400" />
+            <h2 className="text-xl font-semibold text-slate-900">最近项目</h2>
+          </div>
+          {recentProjects.length > 0 && (
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={handleExportAll} className="gap-1.5 text-slate-500 hover:text-slate-700">
+                <Download className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">导出备份</span>
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => importInputRef.current?.click()} className="gap-1.5 text-slate-500 hover:text-slate-700">
+                <Upload className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">导入项目</span>
+              </Button>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept=".json"
+                className="hidden"
+                onChange={handleImport}
+              />
+            </div>
+          )}
         </div>
         {recentProjects.length === 0 ? (
           <div className="rounded-lg border border-dashed border-slate-300 py-12 text-center">
