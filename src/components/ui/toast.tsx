@@ -12,6 +12,9 @@ const toastStyles: Record<ToastItem['type'], { bg: string; icon: typeof CheckCir
   info: { bg: 'bg-blue-50 border-blue-200', icon: Info, iconColor: 'text-blue-600' },
 };
 
+// 最多保留的 Toast 数量，防止连续触发时 DOM 堆积
+const MAX_TOASTS = 5;
+
 // 单个 Toast 条目
 function ToastEntry({ item, onDismiss }: { item: ToastItem; onDismiss: (id: number) => void }) {
   const style = toastStyles[item.type];
@@ -46,7 +49,8 @@ export function ToastContainer() {
   useEffect(() => {
     const handler = (e: Event) => {
       const item = (e as CustomEvent<ToastItem>).detail;
-      setToasts((prev) => [...prev, item]);
+      // 最多保留 MAX_TOASTS 条 toast，防止连续触发时 DOM 堆积
+      setToasts((prev) => [...prev, item].slice(-MAX_TOASTS));
     };
     window.addEventListener(TOAST_EVENT, handler);
     return () => window.removeEventListener(TOAST_EVENT, handler);
