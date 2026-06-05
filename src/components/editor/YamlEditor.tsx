@@ -13,7 +13,20 @@ interface YamlEditorProps {
 export function YamlEditor({ value, onChange, onSave }: YamlEditorProps) {
   const [validationStatus, setValidationStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [scrollTop, setScrollTop] = useState(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // 计算行号数组（行号从 1 开始）
+  const lineCount = value.split('\n').length;
+  const lineNumbers = Array.from({ length: Math.max(lineCount, 1) }, (_, i) => i + 1);
+
+  // textarea 滚动同步到行号列
+  const handleScroll = useCallback(() => {
+    if (textareaRef.current) {
+      setScrollTop(textareaRef.current.scrollTop);
+    }
+  }, []);
 
   // 防抖校验（500ms）
   const runValidation = useCallback(
@@ -92,14 +105,32 @@ export function YamlEditor({ value, onChange, onSave }: YamlEditorProps) {
       )}
 
       {/* 编辑区 */}
-      <textarea
-        data-testid="yaml-editor"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="flex-1 w-full bg-slate-900 text-slate-100 font-mono text-sm p-4 outline-none resize-none"
-        placeholder="# 在此输入或粘贴 YAML 剧本内容"
-        spellCheck={false}
-      />
+      <div className="flex flex-1 overflow-hidden">
+        {/* 行号列 */}
+        <div
+          aria-hidden="true"
+          className="flex-shrink-0 select-none pointer-events-none overflow-hidden bg-slate-800 text-slate-500 font-mono text-sm text-right pr-2 pl-2 pt-4"
+          style={{ transform: `translateY(${-scrollTop}px)` }}
+        >
+          {lineNumbers.map((num) => (
+            <div key={num} className="leading-6">
+              {num}
+            </div>
+          ))}
+        </div>
+        {/* 文本区 */}
+        <textarea
+          ref={textareaRef}
+          data-testid="yaml-editor"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onScroll={handleScroll}
+          className="flex-1 w-full bg-slate-900 text-slate-100 font-mono text-sm p-4 outline-none resize-none"
+          placeholder="# 在此输入或粘贴 YAML 剧本内容"
+          spellCheck={false}
+          style={{ lineHeight: '1.5rem' }}
+        />
+      </div>
     </div>
   );
 }
