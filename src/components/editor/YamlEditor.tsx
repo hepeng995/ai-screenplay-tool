@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { CheckCircle2, AlertCircle, Loader2, Undo2, Redo2 } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { CheckCircle2, AlertCircle, Loader2, Undo2, Redo2, Search, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { validateYaml } from '@/lib/utils/yaml-validator';
 
 interface YamlEditorProps {
@@ -28,6 +28,85 @@ export function YamlEditor({ value, onChange, onSave }: YamlEditorProps) {
   const historyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
+
+  // 搜索状态
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const [searchCurrentIdx, setSearchCurrentIdx] = useState(-1);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  /** 计算所有匹配位置 */
+  const searchMatches = useMemo(() => {
+    if (!searchText || !value) return [];
+    const indices: number[] = [];
+    let searchFrom = 0;
+    const lower = value.toLowerCase();
+    const term = searchText.toLowerCase();
+    while (searchFrom < lower.length) {
+      const found = lower.indexOf(term, searchFrom);
+      if (found === -1) break;
+      indices.push(found);
+      searchFrom = found + 1;
+    }
+    return indices;
+  }, [value, searchText]);
+
+  /** 搜索匹配数量 */
+  const matchCount = searchMatches.length;
+
+  /** 跳转到指定匹配位置（滚动 textarea 到对应位置） */
+  const scrollToMatch = useCallback((idx: number) => {
+    if (idx < 0 || idx >= searchMatches.length) return;
+    const pos = searchMatches[idx];
+    // 计算目标位置所在行
+    const textBefore = value.substring(0, pos);
+    const lineNumber = textBefore.split('\n').length;
+    const lineHeight = 24; // 1.5rem = 24px
+    if (textareaRef.current) {
+      textareaRef.current.scrollTop = (lineNumber - 3) * lineHeight;
+      // 选中匹配文本
+      textareaRef.current.focus();
+      textareaRef.current.setSelectionRange(pos, pos + searchText.length);
+    }
+  }, [searchMatches, value, searchText]);
+
+  /** 搜索下一个 */
+  const searchNext = useCallback(() => {
+    if (matchCount === 0) return;
+    const next = searchCurrentIdx >= matchCount - 1 ? 0 : searchCurrentIdx + 1;
+    setSearchCurrentIdx(next);
+    scrollToMatch(next);
+  }, [matchCount, searchCurrentIdx, scrollToMatch]);
+
+  /** 搜索上一个 */
+  const searchPrev = useCallback(() => {
+    if (matchCount === 0) return;
+    const prev = searchCurrentIdx <= 0 ? matchCount - 1 : searchCurrentIdx - 1;
+    setSearchCurrentIdx(prev);
+    scrollToMatch(prev);
+  }, [matchCount, searchCurrentIdx, scrollToMatch]);
+
+  /** 打开搜索栏 */
+  const openSearch = useCallback(() => {
+    setShowSearch(true);
+    // 如果 textarea 有选中文本，自动填入搜索框
+    if (textareaRef.current) {
+      const selected = textareaRef.current.value.substring(
+        textareaRef.current.selectionStart,
+        textareaRef.current.selectionEnd,
+      );
+      if (selected) setSearchText(selected);
+    }
+    setTimeout(() => searchInputRef.current?.focus(), 50);
+  }, []);
+
+  /** 关闭搜索栏 */
+  const closeSearch = useCallback(() => {
+    setShowSearch(false);
+    setSearchText('');
+    setSearchCurrentIdx(-1);
+    textareaRef.current?.focus();
+  }, []);
 
   /** 记录编辑历史（防抖，避免每次按键都记录） */
   const recordHistory = useCallback((newValue: string) => {
@@ -121,29 +200,54 @@ export function YamlEditor({ value, onChange, onSave }: YamlEditorProps) {
     };
   }, [value, runValidation, recordHistory]);
 
-  // Ctrl+S 保存 + Ctrl+Z 撤销 + Ctrl+Y 重做
+  // 搜索文本变化时重置索引并跳转到第一个匹配
+  useEffect(() => {
+    if (matchCount > 0) {
+      setSearchCurrentIdx(0);
+      scrollToMatch(0);
+    } else {
+      setSearchCurrentIdx(-1);
+    }
+  // 仅在 searchText 变化时触发，避免 scrollToMatch 依赖导致的循环
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchText]);
+
+  // 键盘快捷键
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Ctrl+S 保存
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         onSave?.();
       }
-      // Ctrl+Z 撤销（仅在编辑器聚焦时）
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-        if (document.activeElement === textareaRef.current) {
-          // 让浏览器原生撤销处理，历史栈由 onChange 同步
+      // Ctrl+F 打开搜索
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        if (showSearch) {
+          searchInputRef.current?.focus();
+          searchInputRef.current?.select();
+        } else {
+          openSearch();
         }
       }
-      // Ctrl+Y / Ctrl+Shift+Z 重做
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
-        if (document.activeElement === textareaRef.current) {
-          // 让浏览器原生重做处理
+      // Escape 关闭搜索
+      if (e.key === 'Escape' && showSearch) {
+        e.preventDefault();
+        closeSearch();
+      }
+      // Enter 在搜索框中跳转下一个
+      if (e.key === 'Enter' && document.activeElement === searchInputRef.current) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          searchPrev();
+        } else {
+          searchNext();
         }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [onSave]);
+  }, [onSave, showSearch, openSearch, closeSearch, searchNext, searchPrev]);
 
   const statusDisplay = {
     idle: { icon: null, text: '', color: '', spin: false },
@@ -186,9 +290,62 @@ export function YamlEditor({ value, onChange, onSave }: YamlEditorProps) {
               <Redo2 className="h-3.5 w-3.5" />
             </button>
           </div>
+          {/* 搜索按钮 */}
+          <button
+            type="button"
+            onClick={openSearch}
+            className="p-1 rounded text-slate-300 hover:bg-slate-700"
+            title="搜索 (Ctrl+F)"
+          >
+            <Search className="h-3.5 w-3.5" />
+          </button>
           <span className="text-xs text-slate-500">{value.length} 字符</span>
         </div>
       </div>
+
+      {/* 搜索栏 */}
+      {showSearch && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-slate-750 border-b border-slate-600 bg-slate-700">
+          <Search className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            placeholder="搜索..."
+            className="flex-1 bg-slate-800 text-slate-100 text-sm px-2 py-1 rounded border border-slate-600 outline-none focus:border-indigo-500"
+          />
+          <span className="text-xs text-slate-400 whitespace-nowrap">
+            {matchCount > 0 ? `${searchCurrentIdx + 1}/${matchCount}` : '无匹配'}
+          </span>
+          <button
+            type="button"
+            onClick={searchPrev}
+            disabled={matchCount === 0}
+            className={`p-0.5 rounded ${matchCount > 0 ? 'text-slate-300 hover:bg-slate-600' : 'text-slate-600 cursor-not-allowed'}`}
+            title="上一个 (Shift+Enter)"
+          >
+            <ChevronUp className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={searchNext}
+            disabled={matchCount === 0}
+            className={`p-0.5 rounded ${matchCount > 0 ? 'text-slate-300 hover:bg-slate-600' : 'text-slate-600 cursor-not-allowed'}`}
+            title="下一个 (Enter)"
+          >
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={closeSearch}
+            className="p-0.5 rounded text-slate-400 hover:text-slate-200 hover:bg-slate-600"
+            title="关闭 (Esc)"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* 错误消息 */}
       {validationStatus === 'invalid' && errorMessage && (
