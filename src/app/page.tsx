@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { toast } from '@/lib/utils/toast';
-import { deleteProject, renameProject } from '@/lib/utils/storage';
+import { deleteProject, renameProject, listProjects, type Project } from '@/lib/utils/storage';
 
 interface RecentProject {
   id: string;
@@ -44,9 +44,6 @@ const features = [
   },
 ];
 
-// localStorage 中项目列表的 key
-const PROJECTS_KEY = 'ai-script-projects';
-
 export default function Home() {
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
   // 删除确认弹窗状态：当前选中要删除的项目 ID
@@ -58,29 +55,19 @@ export default function Home() {
 
   /**
    * 从 localStorage 加载项目列表
-   * 注意：localStorage 中 Project 用 `name` 字段，UI 中 RecentProject 用 `title` 字段
+   * 复用 storage.ts 的 listProjects 抽象层，避免重复常量和手动 JSON.parse
+   * 注意：storage 的 Project 用 `name` 字段，UI 的 RecentProject 用 `title` 字段
    */
   const loadProjects = useCallback(() => {
-    try {
-      const raw = localStorage.getItem(PROJECTS_KEY);
-      if (!raw) {
-        setRecentProjects([]);
-        return;
-      }
-      const parsed = JSON.parse(raw) as Array<{ id: string; name?: string; title?: string; updatedAt: string }>;
-      // 字段映射：name -> title，兼容两种字段
-      const mapped: RecentProject[] = parsed.map((p) => ({
-        id: p.id,
-        title: p.name ?? p.title ?? '',
-        updatedAt: p.updatedAt,
-      }));
-      // 与 listProjects 保持一致：按 updatedAt 降序
-      mapped.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-      setRecentProjects(mapped);
-    } catch {
-      // localStorage 不可用或数据损坏，忽略
-      setRecentProjects([]);
-    }
+    const projects: Project[] = listProjects();
+    // 字段映射：name -> title
+    const mapped: RecentProject[] = projects.map((p) => ({
+      id: p.id,
+      title: p.name,
+      updatedAt: p.updatedAt,
+    }));
+    // listProjects 已按 updatedAt 降序排列，无需再排
+    setRecentProjects(mapped);
   }, []);
 
   useEffect(() => {
