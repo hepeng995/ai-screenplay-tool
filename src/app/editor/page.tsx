@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Edit3, Download, Save, Upload as UploadIcon } from 'lucide-react';
+import yaml from 'js-yaml';
+import { Edit3, Download, Save, Upload as UploadIcon, FileJson, FileText } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { YamlEditor } from '@/components/editor/YamlEditor';
@@ -15,6 +16,7 @@ function EditorContent() {
 
   const [yamlContent, setYamlContent] = useState('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   // 加载 YAML 内容
   useEffect(() => {
@@ -47,14 +49,32 @@ function EditorContent() {
     setTimeout(() => setSaveStatus('idle'), 2000);
   }, [projectId, yamlContent]);
 
-  const handleExport = useCallback(() => {
+  const handleExportYaml = useCallback(() => {
     const blob = new Blob([yamlContent], { type: 'text/yaml;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `script-${projectId ?? 'export'}.yaml`;
+    a.download = `script-${projectId ?? 'export'}-${new Date().toISOString().slice(0, 10)}.yaml`;
     a.click();
     URL.revokeObjectURL(url);
+    setShowExportMenu(false);
+  }, [yamlContent, projectId]);
+
+  const handleExportJson = useCallback(() => {
+    try {
+      const parsed = yaml.load(yamlContent);
+      const jsonStr = JSON.stringify(parsed, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `script-${projectId ?? 'export'}-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('YAML 解析失败，无法导出 JSON：' + (e instanceof Error ? e.message : String(e)));
+    }
+    setShowExportMenu(false);
   }, [yamlContent, projectId]);
 
   return (
@@ -73,10 +93,31 @@ function EditorContent() {
             <Save className="h-3.5 w-3.5" />
             保存
           </Button>
-          <Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5">
-            <Download className="h-3.5 w-3.5" />
-            导出 YAML
-          </Button>
+          {/* 导出下拉 */}
+          <div className="relative">
+            <Button variant="outline" size="sm" onClick={() => setShowExportMenu(!showExportMenu)} className="gap-1.5">
+              <Download className="h-3.5 w-3.5" />
+              导出
+            </Button>
+            {showExportMenu && (
+              <div className="absolute right-0 mt-1 w-44 rounded-md border border-slate-200 bg-white shadow-lg z-10">
+                <button
+                  onClick={handleExportYaml}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                >
+                  <FileText className="h-4 w-4 text-slate-400" />
+                  导出 YAML
+                </button>
+                <button
+                  onClick={handleExportJson}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 border-t border-slate-100"
+                >
+                  <FileJson className="h-4 w-4 text-slate-400" />
+                  导出 JSON
+                </button>
+              </div>
+            )}
+          </div>
           <Button variant="outline" size="sm" disabled className="gap-1.5" title="七牛云上传（待实现）">
             <UploadIcon className="h-3.5 w-3.5" />
             上传云端
