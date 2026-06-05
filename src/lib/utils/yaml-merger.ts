@@ -107,16 +107,16 @@ export function mergeYamlChapters(yamls: string[]): string {
 
   // 9. metadata：以第一个章节为基础（保留 genre/summary 等字段），
   //    再用合并后的 characters / settings 覆盖
+  // 设计决策：script 和 metadata 元信息以第一个解析成功的章节为基础（见 JSDoc 第 36 行）
   const baseMeta = parsed[0].metadata ?? {};
+  // settings：只要有合并结果或第一章原本就有，就输出该字段
+  const hasSettings = settings.length > 0 || Array.isArray(baseMeta.settings);
   const merged: Record<string, unknown> = {
     script,
     metadata: {
       ...baseMeta,
       characters,
-      // settings：只要任一章节出现过就保留（含去重后的合并结果）
-      ...(settings.length > 0 || Array.isArray(baseMeta.settings)
-        ? { settings }
-        : {}),
+      ...(hasSettings ? { settings } : {}),
     },
     acts,
   };
