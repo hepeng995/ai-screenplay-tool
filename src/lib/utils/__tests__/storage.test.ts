@@ -80,6 +80,35 @@ describe('storage utils', () => {
       expect(loaded!.status).toBe('converted');
       expect(loaded!.chapterCount).toBe(5);
     });
+
+    it('对不存在的 ID 会 push 新项目而非覆盖', () => {
+      // 构造一个不在列表中的项目
+      const newProject: Project = {
+        id: 'manual-id-999',
+        name: '手动添加的项目',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        status: 'uploaded',
+        chapterCount: 0,
+      };
+      saveProject(newProject);
+
+      // 验证可加载
+      const loaded = loadProject('manual-id-999');
+      expect(loaded).not.toBeNull();
+      expect(loaded!.name).toBe('手动添加的项目');
+    });
+
+    it('saveProject 自动更新 updatedAt', async () => {
+      const p = createProject('test');
+      const originalUpdatedAt = p.updatedAt;
+      // 等待至少 1ms 确保时间戳不同
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      saveProject(p);
+      const loaded = loadProject(p.id);
+      expect(loaded).not.toBeNull();
+      expect(loaded!.updatedAt).not.toBe(originalUpdatedAt);
+    });
   });
 
   describe('deleteProject', () => {
@@ -87,6 +116,22 @@ describe('storage utils', () => {
       const p = createProject('test');
       deleteProject(p.id);
       expect(loadProject(p.id)).toBeNull();
+    });
+
+    it('删除不存在的 ID 不报错', () => {
+      expect(() => deleteProject('nonexistent-id-999')).not.toThrow();
+    });
+
+    it('删除项目后其他项目仍然存在', () => {
+      const p1 = createProject('项目1');
+      const p2 = createProject('项目2');
+      deleteProject(p1.id);
+      // p2 应该还在
+      const loaded2 = loadProject(p2.id);
+      expect(loaded2).not.toBeNull();
+      expect(loaded2!.name).toBe('项目2');
+      // p1 应该不在了
+      expect(loadProject(p1.id)).toBeNull();
     });
   });
 
