@@ -1,0 +1,21 @@
+{
+  "name": "mimo-poc",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PoC: mimo-v2.5 API 用于小说→YAML剧本转换的可行性验证",
+  "type": "module",
+  "scripts": {
+    "poc": "tsx mimo-poc.ts",
+    "start": "tsx mimo-poc.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0"
+  }
+}

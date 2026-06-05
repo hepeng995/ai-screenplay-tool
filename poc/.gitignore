@@ -1,0 +1,7 @@
+# 保护 PoC 测试产物
+node_modules/
+results/
+*.log
+.env
+.env.local
+*.bak
