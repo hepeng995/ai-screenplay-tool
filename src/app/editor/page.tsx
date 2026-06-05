@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import yaml from 'js-yaml';
-import { Edit3, Download, Save, Upload as UploadIcon, FileJson, FileText, CloudUpload, CloudDownload, Wand2 } from 'lucide-react';
+import { Edit3, Download, Save, FileJson, FileText, CloudUpload, CloudDownload, Wand2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { YamlEditor } from '@/components/editor/YamlEditor';
@@ -22,13 +22,15 @@ function EditorContent() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [cloudStatus, setCloudStatus] = useState<'idle' | 'uploading' | 'downloading' | 'success' | 'error'>('idle');
   const [cloudMessage, setCloudMessage] = useState<string>('');
+  // 保存状态定时器引用（避免组件卸载后仍触发状态更新）
+  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 加载 YAML 内容
   useEffect(() => {
     if (!projectId) return;
-    const yaml = loadYamlContent(projectId);
-    if (yaml) {
-      setYamlContent(yaml);
+    const yamlText = loadYamlContent(projectId);
+    if (yamlText) {
+      setYamlContent(yamlText);
     }
   }, [projectId]);
 
@@ -51,8 +53,17 @@ function EditorContent() {
     if (!projectId) return;
     saveYamlContent(projectId, yamlContent);
     setSaveStatus('saved');
-    setTimeout(() => setSaveStatus('idle'), 2000);
+    // 清除上一次的定时器，避免多次触发叠加；卸载时由 useEffect 兜底清理
+    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    statusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000);
   }, [projectId, yamlContent]);
+
+  // 组件卸载时清理定时器，防止内存泄漏与对已卸载组件的状态更新
+  useEffect(() => {
+    return () => {
+      if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    };
+  }, []);
 
   /** 格式化 YAML：解析后重新序列化，统一缩进和换行 */
   const handleFormatYaml = useCallback(() => {
