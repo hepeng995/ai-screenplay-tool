@@ -1,5 +1,10 @@
 ﻿# AI 剧本工坊 (AI Screenplay Workshop)
 
+[![CI](https://github.com/hepeng995/ai-screenplay-tool/actions/workflows/ci.yml/badge.svg)](https://github.com/hepeng995/ai-screenplay-tool/actions/workflows/ci.yml)
+[![Vercel](https://img.shields.io/badge/Vercel-Live-brightgreen)](https://ai-screenplay-tool.vercel.app/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub stars](https://img.shields.io/github/stars/hepeng995/ai-screenplay-tool.svg)](https://github.com/hepeng995/ai-screenplay-tool)
+
 > 将小说文本自动转换为结构化 YAML 剧本的 AI 辅助创作工具。
 
 ## 📺 Demo 视频
