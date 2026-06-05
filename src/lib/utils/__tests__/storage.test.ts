@@ -20,6 +20,7 @@ import {
   loadProject,
   saveProject,
   deleteProject,
+  renameProject,
   saveNovelText,
   loadNovelText,
   saveYamlContent,
@@ -86,6 +87,52 @@ describe('storage utils', () => {
       const p = createProject('test');
       deleteProject(p.id);
       expect(loadProject(p.id)).toBeNull();
+    });
+  });
+
+  describe('renameProject', () => {
+    it('正确重命名项目', () => {
+      const p = createProject('测试项目');
+      renameProject(p.id, '新名称');
+      const loaded = loadProject(p.id);
+      expect(loaded).not.toBeNull();
+      expect(loaded!.name).toBe('新名称');
+    });
+
+    it('重命名后列表中体现新名称', () => {
+      const p = createProject('旧名称');
+      renameProject(p.id, '新名称');
+      const list = listProjects();
+      const target = list.find((item) => item.id === p.id);
+      expect(target?.name).toBe('新名称');
+    });
+
+    it('重命名不存在的项目不报错', () => {
+      expect(() => renameProject('nonexistent-id', '新名称')).not.toThrow();
+    });
+
+    it('重命名后 updatedAt 更新', async () => {
+      const p = createProject('测试');
+      const originalTime = p.updatedAt;
+      // 等待至少 1ms 确保时间戳不同
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      renameProject(p.id, '新名称');
+      const loaded = loadProject(p.id);
+      expect(loaded).not.toBeNull();
+      expect(loaded!.updatedAt).not.toBe(originalTime);
+    });
+
+    it('重命名不影响其它项目字段', () => {
+      const p = createProject('测试');
+      const originalCreatedAt = p.createdAt;
+      const originalStatus = p.status;
+      const originalChapterCount = p.chapterCount;
+      renameProject(p.id, '新名称');
+      const loaded = loadProject(p.id);
+      expect(loaded).not.toBeNull();
+      expect(loaded!.createdAt).toBe(originalCreatedAt);
+      expect(loaded!.status).toBe(originalStatus);
+      expect(loaded!.chapterCount).toBe(originalChapterCount);
     });
   });
 

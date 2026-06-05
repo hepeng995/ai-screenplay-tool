@@ -61,6 +61,18 @@ export function deleteProject(id: string): void {
   localStorage.removeItem(`${NOVEL_PREFIX}${id}`);
 }
 
+/** 重命名项目（不修改其它字段，仅 name 和 updatedAt） */
+export function renameProject(id: string, newName: string): void {
+  if (typeof window === 'undefined') return;
+  const projects = listProjects();
+  const idx = projects.findIndex((p) => p.id === id);
+  if (idx >= 0) {
+    projects[idx].name = newName;
+    projects[idx].updatedAt = new Date().toISOString();
+    localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
+  }
+}
+
 /** 创建新项目 */
 export function createProject(name: string): Project {
   const id = crypto.randomUUID();

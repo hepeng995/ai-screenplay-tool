@@ -1,10 +1,24 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { Scissors, Sparkles, Edit3, FileText, ArrowRight, FolderOpen } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import {
+  Scissors,
+  Sparkles,
+  Edit3,
+  FileText,
+  ArrowRight,
+  FolderOpen,
+  Pencil,
+  Trash2,
+  X,
+  Check,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Dialog } from '@/components/ui/dialog';
+import { toast } from '@/lib/utils/toast';
+import { deleteProject, renameProject } from '@/lib/utils/storage';
 
 interface RecentProject {
   id: string;
@@ -30,19 +44,83 @@ const features = [
   },
 ];
 
+// localStorage 中项目列表的 key
+const PROJECTS_KEY = 'ai-script-projects';
+
 export default function Home() {
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
+  // 删除确认弹窗状态：当前选中要删除的项目 ID
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  // 重命名状态：当前正在重命名的项目 ID
+  const [renameId, setRenameId] = useState<string | null>(null);
+  // 重命名输入值
+  const [renameValue, setRenameValue] = useState('');
 
-  useEffect(() => {
+  /**
+   * 从 localStorage 加载项目列表
+   * 注意：localStorage 中 Project 用 `name` 字段，UI 中 RecentProject 用 `title` 字段
+   */
+  const loadProjects = useCallback(() => {
     try {
-      const raw = localStorage.getItem('ai-script-projects');
-      if (raw) {
-        setRecentProjects(JSON.parse(raw));
+      const raw = localStorage.getItem(PROJECTS_KEY);
+      if (!raw) {
+        setRecentProjects([]);
+        return;
       }
+      const parsed = JSON.parse(raw) as Array<{ id: string; name?: string; title?: string; updatedAt: string }>;
+      // 字段映射：name -> title，兼容两种字段
+      const mapped: RecentProject[] = parsed.map((p) => ({
+        id: p.id,
+        title: p.name ?? p.title ?? '',
+        updatedAt: p.updatedAt,
+      }));
+      // 与 listProjects 保持一致：按 updatedAt 降序
+      mapped.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      setRecentProjects(mapped);
     } catch {
       // localStorage 不可用或数据损坏，忽略
+      setRecentProjects([]);
     }
   }, []);
+
+  useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
+
+  /** 开始重命名：进入编辑态，预填当前项目名 */
+  const handleRenameStart = (proj: RecentProject) => {
+    setRenameId(proj.id);
+    setRenameValue(proj.title);
+  };
+
+  /** 确认重命名 */
+  const handleRenameConfirm = (id: string) => {
+    const trimmed = renameValue.trim();
+    if (!trimmed) {
+      toast.error('项目名称不能为空');
+      return;
+    }
+    renameProject(id, trimmed);
+    loadProjects();
+    setRenameId(null);
+    setRenameValue('');
+    toast.success('已重命名');
+  };
+
+  /** 取消重命名 */
+  const handleRenameCancel = () => {
+    setRenameId(null);
+    setRenameValue('');
+  };
+
+  /** 确认删除 */
+  const handleDeleteConfirm = () => {
+    if (!deleteId) return;
+    deleteProject(deleteId);
+    loadProjects();
+    setDeleteId(null);
+    toast.success('已删除');
+  };
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-12">
@@ -98,21 +176,101 @@ export default function Home() {
         ) : (
           <div className="space-y-2">
             {recentProjects.map((proj) => (
-              <Link
+              <div
                 key={proj.id}
-                href={`/editor?id=${proj.id}`}
-                className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 hover:border-indigo-300 hover:shadow-sm transition-all"
+                className="group flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 hover:border-indigo-300 hover:shadow-sm transition-all"
               >
-                <div className="flex items-center gap-3">
-                  <FileText className="h-4 w-4 text-slate-400" />
-                  <span className="font-medium text-slate-900">{proj.title}</span>
+                <Link
+                  href={`/editor?id=${proj.id}`}
+                  className="flex items-center gap-3 flex-1 min-w-0"
+                >
+                  <FileText className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                  {renameId === proj.id ? (
+                    <input
+                      type="text"
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleRenameConfirm(proj.id);
+                        if (e.key === 'Escape') handleRenameCancel();
+                      }}
+                      autoFocus
+                      className="font-medium text-slate-900 bg-transparent border border-indigo-300 rounded px-2 py-0.5 outline-none focus:border-indigo-500"
+                      onClick={(e) => e.preventDefault()}
+                    />
+                  ) : (
+                    <span className="font-medium text-slate-900 truncate">
+                      {proj.title}
+                    </span>
+                  )}
+                </Link>
+                <div className="flex items-center gap-2 ml-2">
+                  <span className="text-xs text-slate-500">{proj.updatedAt}</span>
+                  {/* 悬停显示的操作按钮 */}
+                  {renameId === proj.id ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleRenameConfirm(proj.id)}
+                        className="p-1 rounded hover:bg-green-50 text-green-600"
+                        aria-label="确认重命名"
+                      >
+                        <Check className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRenameCancel}
+                        className="p-1 rounded hover:bg-slate-100 text-slate-500"
+                        aria-label="取消重命名"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </>
+                  ) : (
+                    <div className="hidden group-hover:flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleRenameStart(proj);
+                        }}
+                        className="p-1 rounded hover:bg-indigo-50 text-indigo-600"
+                        aria-label="重命名"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setDeleteId(proj.id);
+                        }}
+                        className="p-1 rounded hover:bg-red-50 text-red-600"
+                        aria-label="删除"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <span className="text-xs text-slate-500">{proj.updatedAt}</span>
-              </Link>
+              </div>
             ))}
           </div>
         )}
       </section>
+
+      {/* 删除确认弹窗 */}
+      <Dialog
+        open={deleteId !== null}
+        title="确认删除"
+        description="删除后不可恢复，确定要删除这个项目吗？"
+        confirmText="删除"
+        variant="danger"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteId(null)}
+      />
     </div>
   );
 }
