@@ -144,8 +144,8 @@ export async function generateDownloadUrl(
     throw new Error('七牛云环境变量未配置：请设置 QINIU_ACCESS_KEY, QINIU_SECRET_KEY, QINIU_DOMAIN');
   }
 
-  // 基础 URL
-  const baseUrl = `http://${domain}/${encodeURIComponent(key)}`;
+  // 基础 URL（使用 HTTPS 确保传输安全）
+  const baseUrl = `https://${domain}/${encodeURIComponent(key)}`;
 
   // 添加过期时间戳
   const deadline = Math.floor(Date.now() / 1000) + expiresInSeconds;

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import yaml from 'js-yaml';
-import { Edit3, Download, Save, FileJson, FileText, CloudUpload, CloudDownload, Wand2 } from 'lucide-react';
+import { Edit3, Download, Save, FileJson, FileText, CloudUpload, CloudDownload, Wand2, Eye } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { YamlEditor } from '@/components/editor/YamlEditor';
@@ -19,11 +19,16 @@ function EditorContent() {
 
   const [yamlContent, setYamlContent] = useState('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
+  const [lastSavedAt, setLastSavedAt] = useState<string>('');
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [cloudStatus, setCloudStatus] = useState<'idle' | 'uploading' | 'downloading' | 'success' | 'error'>('idle');
   const [cloudMessage, setCloudMessage] = useState<string>('');
   // 保存状态定时器引用（避免组件卸载后仍触发状态更新）
   const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 导出菜单引用（用于点击外部关闭）
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+  // 移动端编辑/预览切换（lg 及以上忽略此状态，始终双栏）
+  const [mobileView, setMobileView] = useState<'editor' | 'preview'>('editor');
 
   // 加载 YAML 内容
   useEffect(() => {
@@ -40,6 +45,7 @@ function EditorContent() {
     const timer = setTimeout(() => {
       saveYamlContent(projectId, yamlContent);
       setSaveStatus('saved');
+      setLastSavedAt(new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
       const project = loadProject(projectId);
       if (project) {
         project.status = 'edited';
@@ -53,6 +59,7 @@ function EditorContent() {
     if (!projectId) return;
     saveYamlContent(projectId, yamlContent);
     setSaveStatus('saved');
+    setLastSavedAt(new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     // 清除上一次的定时器，避免多次触发叠加；卸载时由 useEffect 兜底清理
     if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
     statusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000);
@@ -64,6 +71,18 @@ function EditorContent() {
       if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
     };
   }, []);
+
+  // 导出菜单：点击外部关闭
+  useEffect(() => {
+    if (!showExportMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showExportMenu]);
 
   /** 格式化 YAML：解析后重新序列化，统一缩进和换行 */
   const handleFormatYaml = useCallback(() => {
@@ -181,8 +200,8 @@ function EditorContent() {
           <p className="text-sm text-slate-500">在线编辑 · 实时校验 · 多格式导出 · 云端同步</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {saveStatus === 'saved' && (
-            <span className="text-xs text-green-600">已保存</span>
+          {saveStatus === 'saved' && lastSavedAt && (
+            <span className="text-xs text-green-600">✓ 已保存 {lastSavedAt}</span>
           )}
           {cloudMessage && (
             <span data-testid="cloud-status" className={`text-xs ${cloudStatus === 'error' ? 'text-red-600' : cloudStatus === 'success' ? 'text-green-600' : 'text-blue-600'}`}>
@@ -198,7 +217,7 @@ function EditorContent() {
             格式化
           </Button>
           {/* 导出下拉 */}
-          <div className="relative">
+          <div className="relative" ref={exportMenuRef}>
             <Button variant="outline" size="sm" onClick={() => setShowExportMenu(!showExportMenu)} className="gap-1.5">
               <Download className="h-3.5 w-3.5" />
               导出
@@ -247,11 +266,32 @@ function EditorContent() {
         </div>
       </div>
 
-      {/* 编辑 + 预览 双栏：小屏单栏堆叠，lg 及以上双栏并排 */}
+      {/* 移动端编辑/预览切换按钮 */}
+      <div className="flex lg:hidden mb-2 gap-2">
+        <Button
+          variant={mobileView === 'editor' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setMobileView('editor')}
+          className="flex-1 gap-1.5"
+        >
+          <Edit3 className="h-3.5 w-3.5" />
+          编辑
+        </Button>
+        <Button
+          variant={mobileView === 'preview' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setMobileView('preview')}
+          className="flex-1 gap-1.5"
+        >
+          <Eye className="h-3.5 w-3.5" />
+          预览
+        </Button>
+      </div>
+
+      {/* 编辑 + 预览 双栏：小屏按 mobileView 切换显示，lg 及以上双栏并排 */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:h-[calc(100vh-200px)]">
-        {/* 移动端给每个卡片一个合适的高度，桌面端由 grid 高度驱动 */}
         {/* 编辑区 */}
-        <Card className="flex flex-col overflow-hidden h-[60vh] lg:h-auto">
+        <Card className={`flex flex-col overflow-hidden h-[70vh] lg:h-auto ${mobileView !== 'editor' ? 'hidden lg:flex' : ''}`}>
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
               <Edit3 className="h-4 w-4 text-slate-400" />
@@ -265,7 +305,7 @@ function EditorContent() {
         </Card>
 
         {/* 预览区 */}
-        <Card className="flex flex-col overflow-hidden h-[60vh] lg:h-auto">
+        <Card className={`flex flex-col overflow-hidden h-[70vh] lg:h-auto ${mobileView !== 'preview' ? 'hidden lg:flex' : ''}`}>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">预览区</CardTitle>
             <CardDescription>结构化树形预览 + 统计信息</CardDescription>

@@ -163,34 +163,20 @@ describe('FileUploader 组件', () => {
     });
   });
 
-  it('FileReader onerror 不崩溃并显示错误', async () => {
-    // 模拟 FileReader 报错
-    const originalFileReader = globalThis.FileReader;
-    globalThis.FileReader = vi.fn(() => ({
-      onload: null,
-      onerror: null,
-      readAsText: function () {
-        // 异步触发 onerror
-        setTimeout(() => {
-          const handler = this.onerror as ((e: Event) => void) | null;
-          if (handler) handler(new Event('error'));
-        }, 0);
-      },
-    })) as any;
-
+  it('文件读取失败时显示错误提示', async () => {
+    // 模拟 file.arrayBuffer() 抛出异常
     render(<FileUploader />);
     const zone = screen.getByTestId('upload-zone');
 
     const file = new File(['content'], 'error.txt', { type: 'text/plain' });
+    // 覆盖 arrayBuffer 方法使其抛错
+    vi.spyOn(file, 'arrayBuffer').mockRejectedValue(new Error('read error'));
     fireEvent.drop(zone, { dataTransfer: { files: [file] } });
 
     await waitFor(() => {
       const errorEl = screen.queryByTestId('error-message');
       expect(errorEl).not.toBeNull();
-      expect(errorEl?.textContent).toContain('读取失败');
+      expect(errorEl?.textContent).toContain('文件读取失败');
     });
-
-    // 恢复原始 FileReader
-    globalThis.FileReader = originalFileReader;
   });
 });

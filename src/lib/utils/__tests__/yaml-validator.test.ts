@@ -69,12 +69,13 @@ describe('validateYaml', () => {
     expect(result.errors).toBeDefined();
   });
 
-  it('未知字段被 strict 模式拒绝', () => {
+  it('未知字段被 passthrough 模式放行（AI 输出宽容校验）', () => {
     const yaml = validYaml.replace(
       'script:',
       'unknown_root_field: "hello"\nscript:',
     );
     const result = validateYaml(yaml);
-    expect(result.success).toBe(false);
+    // passthrough 模式允许额外字段，只要必填字段齐全就通过
+    expect(result.success).toBe(true);
   });
 });

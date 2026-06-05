@@ -67,7 +67,7 @@ describe('Qiniu Token Generation', () => {
 
     const url = await generateDownloadUrl('test-file.yaml', 3600);
 
-    expect(url).toContain('http://cdn.example.com/');
+    expect(url).toContain('https://cdn.example.com/');
     expect(url).toContain('e=');
     expect(url).toContain('token=test_ak');
   });

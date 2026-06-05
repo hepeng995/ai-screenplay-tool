@@ -1,12 +1,12 @@
 import { z } from 'zod';
 
-// 对话条目
+// 对话条目（使用 passthrough 允许 AI 输出的额外字段通过，避免严格拒绝）
 export const DialogueSchema = z.object({
   character: z.string().min(1, '角色名不能为空'),
   type: z.enum(['对白', '独白', '旁白', '动作']),
   content: z.string().min(1, '台词内容不能为空'),
   action: z.string().optional(),
-}).strict();
+}).passthrough();
 
 // 场景
 export const SceneSchema = z.object({
@@ -16,14 +16,14 @@ export const SceneSchema = z.object({
   characters_present: z.array(z.string().min(1)).min(1, '至少需要 1 个在场角色'),
   description: z.string().optional(),
   dialogues: z.array(DialogueSchema).min(1, '每个场景至少需要 1 条对话'),
-}).strict();
+}).passthrough();
 
 // 幕
 export const ActSchema = z.object({
   act_number: z.number().int().min(1),
   title: z.string().min(1, '幕标题不能为空'),
   scenes: z.array(SceneSchema).min(1, '每幕至少需要 1 个场景'),
-}).strict();
+}).passthrough();
 
 // 元数据
 export const MetadataSchema = z.object({
@@ -31,7 +31,7 @@ export const MetadataSchema = z.object({
   characters: z.array(z.string().min(1)).min(1, '至少需要 1 个角色'),
   settings: z.array(z.string()).optional(),
   summary: z.string().optional(),
-}).strict();
+}).passthrough();
 
 // 剧本根元信息
 export const ScriptMetaSchema = z.object({
@@ -39,14 +39,14 @@ export const ScriptMetaSchema = z.object({
   source: z.string().min(1, '原小说名称不能为空'),
   adapted_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式必须为 YYYY-MM-DD'),
   adapter: z.string().optional(),
-}).strict();
+}).passthrough();
 
 // 完整剧本 Schema
 export const ScriptSchema = z.object({
   script: ScriptMetaSchema,
   metadata: MetadataSchema,
   acts: z.array(ActSchema).min(1, '至少需要 1 幕'),
-}).strict();
+}).passthrough();
 
 // 类型导出
 export type Script = z.infer<typeof ScriptSchema>;

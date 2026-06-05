@@ -9,6 +9,29 @@ describe('AI Prompt', () => {
       expect(SYSTEM_PROMPT).toContain('scenes:');
     });
 
+    it('Prompt 字段与 ScriptSchema 对齐', () => {
+      // script 字段：title, source, adapted_at, adapter
+      expect(SYSTEM_PROMPT).toContain('source:');
+      expect(SYSTEM_PROMPT).toContain('adapted_at:');
+      expect(SYSTEM_PROMPT).toContain('adapter:');
+      // metadata 字段：genre, characters, settings, summary
+      expect(SYSTEM_PROMPT).toContain('genre:');
+      expect(SYSTEM_PROMPT).toContain('characters:');
+      expect(SYSTEM_PROMPT).toContain('settings:');
+      expect(SYSTEM_PROMPT).toContain('summary:');
+      // acts 字段：act_number, title, scenes
+      expect(SYSTEM_PROMPT).toContain('act_number:');
+      // scenes 字段：scene_number, location, time, characters_present, description, dialogues
+      expect(SYSTEM_PROMPT).toContain('scene_number:');
+      expect(SYSTEM_PROMPT).toContain('characters_present:');
+      expect(SYSTEM_PROMPT).toContain('location:');
+      // dialogues 字段：character, type, content, action
+      expect(SYSTEM_PROMPT).toContain('character:');
+      expect(SYSTEM_PROMPT).toContain('type:');
+      expect(SYSTEM_PROMPT).toContain('content:');
+      expect(SYSTEM_PROMPT).toContain('action:');
+    });
+
     it('包含对话类型定义', () => {
       expect(SYSTEM_PROMPT).toContain('对白');
       expect(SYSTEM_PROMPT).toContain('独白');
