@@ -17,6 +17,13 @@ export default defineConfig({
       '**/e2e/**',
       '**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build,eslint,prettier}.config.*',
     ],
+    // 覆盖率收集配置（v8 provider）
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html'],
+      include: ['src/**'],
+      exclude: ['src/**/__tests__/**', '**/*.test.*', 'src/types/**'],
+    },
   },
   resolve: {
     alias: {
