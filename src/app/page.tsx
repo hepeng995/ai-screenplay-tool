@@ -13,34 +13,142 @@ import {
   Trash2,
   X,
   Check,
+  Play,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { toast } from '@/lib/utils/toast';
-import { deleteProject, renameProject, listProjects, type Project } from '@/lib/utils/storage';
+import { deleteProject, renameProject, listProjects, createProject, saveYamlContent, type Project } from '@/lib/utils/storage';
 
 interface RecentProject {
   id: string;
   title: string;
   updatedAt: string;
+  status: Project['status'];
+  chapterCount: number;
+  qiniuKey?: string;
 }
+
+/** 项目状态标签样式映射 */
+const STATUS_LABELS: Record<Project['status'], { text: string; color: string }> = {
+  uploaded: { text: '已上传', color: 'bg-slate-100 text-slate-600' },
+  split: { text: '已切分', color: 'bg-blue-50 text-blue-600' },
+  converted: { text: '已转换', color: 'bg-green-50 text-green-600' },
+  edited: { text: '已编辑', color: 'bg-indigo-50 text-indigo-600' },
+};
+
+/** 示例 YAML 剧本（桃花源记改编版，严格对齐 ScriptSchema） */
+const DEMO_YAML = `script:
+  title: "桃花源记"
+  source: "桃花源记"
+  adapted_at: "2026-06-05"
+  adapter: "AI 剧本工坊 Demo"
+metadata:
+  genre: "历史"
+  characters:
+    - "渔夫"
+    - "村长"
+    - "村妇"
+    - "太守使者"
+  settings:
+    - "武陵溪边"
+    - "桃花林"
+    - "桃花源村"
+  summary: "东晋太元年间，武陵渔夫沿溪捕鱼，误入桃花源，发现一个与世隔绝的理想世界。"
+acts:
+  - act_number: 1
+    title: "误入桃源"
+    scenes:
+      - scene_number: 1
+        location: "武陵溪边"
+        time: "日"
+        characters_present:
+          - "渔夫"
+        description: "春日午后，武陵溪上薄雾笼罩，渔夫独自划船捕鱼。"
+        dialogues:
+          - character: "渔夫"
+            type: "独白"
+            content: "今日鱼获寥寥，不如顺流而下，看看尽头是何光景。"
+          - character: "渔夫"
+            type: "旁白"
+            content: "渔夫撑篙前行，溪水渐窄，两岸忽然满是桃花，落英缤纷。"
+          - character: "渔夫"
+            type: "独白"
+            content: "奇怪，此处桃花遍野，芳草鲜美，世外竟有此等美景！"
+      - scene_number: 2
+        location: "桃花源村口"
+        time: "日"
+        characters_present:
+          - "渔夫"
+          - "村长"
+        description: "穿过狭窄山洞后豁然开朗，土地平旷，屋舍俨然。"
+        dialogues:
+          - character: "渔夫"
+            type: "独白"
+            content: "这……这是何处？宛如仙境！"
+          - character: "村长"
+            type: "对白"
+            content: "这位客人从何而来？此地与世隔绝已久，从未有外人到访。"
+          - character: "渔夫"
+            type: "对白"
+            content: "老丈，在下是武陵渔夫，顺溪而来，误入贵地。请问这是什么地方？"
+          - character: "村长"
+            type: "对白"
+            content: "此地名为桃花源。我们先祖为避秦时战乱，举家迁入此地，从此再未外出。"
+          - character: "渔夫"
+            type: "独白"
+            content: "秦朝？如今已是晋朝，世间已过了数百年！"
+  - act_number: 2
+    title: "桃源做客"
+    scenes:
+      - scene_number: 3
+        location: "村长家中"
+        time: "夜"
+        characters_present:
+          - "渔夫"
+          - "村长"
+          - "村妇"
+        description: "村长设宴款待渔夫，村民纷纷前来询问外间消息。"
+        dialogues:
+          - character: "村妇"
+            type: "对白"
+            content: "客人，外间天下可还太平？百姓可还安居？"
+          - character: "渔夫"
+            type: "对白"
+            content: "唉……外间朝代更迭，战乱频仍，百姓苦不堪言。"
+          - character: "村长"
+            type: "独白"
+            content: "果然先祖有先见之明，避世于此，方得安宁。"
+          - character: "渔夫"
+            type: "对白"
+            content: "这里人人怡然自乐，真乃人间仙境。在下能否留下来？"
+          - character: "村长"
+            type: "对白"
+            content: "客人尽可住下。只是有一事相求——离去之后，切勿告诉外人此地所在。"
+          - character: "渔夫"
+            type: "对白"
+            content: "老丈放心，在下绝不相负。"
+`;
 
 const features = [
   {
     icon: Scissors,
     title: '智能章节切分',
     desc: '自动识别小说章节边界，支持多种格式（第X章/Chapter N/卷X），用户预览确认。',
+    href: '/convert',
   },
   {
     icon: Sparkles,
     title: 'AI 自动转换',
     desc: '基于 mimo-v2.5 大模型，将小说文本一键转换为结构化 YAML 剧本格式。',
+    href: '/convert',
   },
   {
     icon: Edit3,
     title: '在线编辑校验',
     desc: '实时 YAML 语法校验 + Zod Schema 结构校验，编辑即见即得。',
+    href: '/editor',
   },
 ];
 
@@ -65,6 +173,9 @@ export default function Home() {
       id: p.id,
       title: p.name,
       updatedAt: p.updatedAt,
+      status: p.status,
+      chapterCount: p.chapterCount,
+      qiniuKey: p.qiniuKey,
     }));
     // listProjects 已按 updatedAt 降序排列，无需再排
     setRecentProjects(mapped);
@@ -119,31 +230,47 @@ export default function Home() {
         <p className="mt-4 text-lg text-slate-600 max-w-2xl mx-auto">
           将小说章节文本自动转换为结构化 YAML 剧本初稿，降低改编门槛，提升创作效率
         </p>
-        <div className="mt-8">
+        <div className="mt-8 flex items-center justify-center gap-3">
           <Link href="/convert">
             <Button size="lg" className="gap-2">
               开始创作 <ArrowRight className="h-4 w-4" />
             </Button>
           </Link>
+          <Button
+            size="lg"
+            variant="outline"
+            className="gap-2"
+            onClick={() => {
+              // 创建 Demo 项目，内置示例 YAML 剧本
+              const project = createProject('示例剧本 - 桃花源记');
+              saveYamlContent(project.id, DEMO_YAML);
+              window.location.href = `/editor?id=${project.id}`;
+            }}
+          >
+            <Play className="h-4 w-4" />
+            体验示例
+          </Button>
         </div>
       </section>
 
       {/* 特性卡片 */}
       <section className="grid grid-cols-1 gap-6 mt-8 md:grid-cols-3">
-        {features.map(({ icon: Icon, title, desc }) => (
-          <Card key={title}>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-50">
-                  <Icon className="h-5 w-5 text-indigo-600" />
+        {features.map(({ icon: Icon, title, desc, href }) => (
+          <Link key={title} href={href}>
+            <Card className="hover:border-indigo-300 hover:shadow-sm transition-all cursor-pointer h-full">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-50">
+                    <Icon className="h-5 w-5 text-indigo-600" />
+                  </div>
+                  <CardTitle>{title}</CardTitle>
                 </div>
-                <CardTitle>{title}</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <CardDescription className="leading-relaxed">{desc}</CardDescription>
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent>
+                <CardDescription className="leading-relaxed">{desc}</CardDescription>
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </section>
 
@@ -192,6 +319,21 @@ export default function Home() {
                   )}
                 </Link>
                 <div className="flex items-center gap-2 ml-2">
+                  {/* 状态标签 */}
+                  {(() => {
+                    const label = STATUS_LABELS[proj.status];
+                    return (
+                      <span className={`text-xs px-1.5 py-0.5 rounded ${label.color}`}>
+                        {label.text}
+                      </span>
+                    );
+                  })()}
+                  {proj.chapterCount > 0 && (
+                    <span className="text-xs text-slate-400">{proj.chapterCount} 章</span>
+                  )}
+                  {proj.qiniuKey && (
+                    <span className="text-xs text-blue-400">☁</span>
+                  )}
                   <span className="text-xs text-slate-500">{proj.updatedAt}</span>
                   {/* 悬停显示的操作按钮 */}
                   {renameId === proj.id ? (
