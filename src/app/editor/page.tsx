@@ -19,11 +19,14 @@ function EditorContent() {
 
   const [yamlContent, setYamlContent] = useState('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
+  const [lastSavedAt, setLastSavedAt] = useState<string>('');
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [cloudStatus, setCloudStatus] = useState<'idle' | 'uploading' | 'downloading' | 'success' | 'error'>('idle');
   const [cloudMessage, setCloudMessage] = useState<string>('');
   // 保存状态定时器引用（避免组件卸载后仍触发状态更新）
   const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 导出菜单引用（用于点击外部关闭）
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   // 加载 YAML 内容
   useEffect(() => {
@@ -40,6 +43,7 @@ function EditorContent() {
     const timer = setTimeout(() => {
       saveYamlContent(projectId, yamlContent);
       setSaveStatus('saved');
+      setLastSavedAt(new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
       const project = loadProject(projectId);
       if (project) {
         project.status = 'edited';
@@ -53,6 +57,7 @@ function EditorContent() {
     if (!projectId) return;
     saveYamlContent(projectId, yamlContent);
     setSaveStatus('saved');
+    setLastSavedAt(new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     // 清除上一次的定时器，避免多次触发叠加；卸载时由 useEffect 兜底清理
     if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
     statusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000);
@@ -64,6 +69,18 @@ function EditorContent() {
       if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
     };
   }, []);
+
+  // 导出菜单：点击外部关闭
+  useEffect(() => {
+    if (!showExportMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showExportMenu]);
 
   /** 格式化 YAML：解析后重新序列化，统一缩进和换行 */
   const handleFormatYaml = useCallback(() => {
@@ -181,8 +198,8 @@ function EditorContent() {
           <p className="text-sm text-slate-500">在线编辑 · 实时校验 · 多格式导出 · 云端同步</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {saveStatus === 'saved' && (
-            <span className="text-xs text-green-600">已保存</span>
+          {saveStatus === 'saved' && lastSavedAt && (
+            <span className="text-xs text-green-600">✓ 已保存 {lastSavedAt}</span>
           )}
           {cloudMessage && (
             <span data-testid="cloud-status" className={`text-xs ${cloudStatus === 'error' ? 'text-red-600' : cloudStatus === 'success' ? 'text-green-600' : 'text-blue-600'}`}>
@@ -198,7 +215,7 @@ function EditorContent() {
             格式化
           </Button>
           {/* 导出下拉 */}
-          <div className="relative">
+          <div className="relative" ref={exportMenuRef}>
             <Button variant="outline" size="sm" onClick={() => setShowExportMenu(!showExportMenu)} className="gap-1.5">
               <Download className="h-3.5 w-3.5" />
               导出
