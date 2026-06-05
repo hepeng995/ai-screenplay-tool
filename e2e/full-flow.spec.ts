@@ -51,11 +51,18 @@ const NOVEL_CONTENT = `第一章 开始
 两人相视而笑，窗外的夕阳映照着他们的脸庞。`;
 
 test.describe('完整转换流程', () => {
+  // 每个测试前清理 localStorage，避免残留数据影响
+  test.beforeEach(async ({ page }) => {
+    await page.evaluate(() => localStorage.clear());
+  });
+
   test('从首页到编辑器的完整流程', async ({ page }) => {
     // 1. Mock /api/convert 接口（响应格式与 src/app/api/convert/route.ts 一致）
     let convertCallCount = 0;
+    let requestBody: string | undefined;
     await page.route('**/api/convert', async (route) => {
       convertCallCount++;
+      requestBody = route.request().postData() ?? undefined;
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -100,74 +107,17 @@ test.describe('完整转换流程', () => {
     // 9. 等待跳转到编辑器（/editor?id=xxx）
     await page.waitForURL('**/editor?id=*', { timeout: 30000 });
 
-    // 10. 验证编辑器页面加载
+    // 10. 验证编辑器页面加载（具体断言：编辑器 textarea 可见且有内容）
     await page.waitForLoadState('networkidle');
-    // 编辑器页面应存在 textarea 或 YAML 预览
-    const textarea = page.locator('textarea').first();
-    const yamlPreview = page.locator('[data-testid="yaml-preview"], pre, code').first();
+    await expect(page.locator('[data-testid="yaml-editor"]')).toBeVisible({ timeout: 5000 });
+    const textarea = page.locator('[data-testid="yaml-editor"]');
+    await expect(textarea).not.toHaveValue('', { timeout: 3000 });
 
-    // 至少有一种编辑器视图可见
-    const hasTextarea = await textarea.isVisible().catch(() => false);
-    const hasPreview = await yamlPreview.isVisible().catch(() => false);
-    expect(hasTextarea || hasPreview).toBeTruthy();
+    // 11. 验证 mock /api/convert 被精确调用 3 次（NOVEL_CONTENT 有 3 章）
+    expect(convertCallCount).toBe(3);
 
-    // 11. 如果存在 textarea，验证有内容（mock YAML 已保存到 localStorage）
-    if (hasTextarea) {
-      await page.waitForTimeout(1000);
-      const content = await textarea.inputValue();
-      expect(content.length).toBeGreaterThan(0);
-    }
-
-    // 12. 验证 mock /api/convert 至少被调用过一次（3 章 = 3 次调用）
-    expect(convertCallCount).toBeGreaterThanOrEqual(1);
-  });
-
-  test('Mock API 应被正确调用并返回 YAML', async ({ page }) => {
-    let apiCalled = false;
-    let requestBody: string | undefined;
-
-    await page.route('**/api/convert', async (route) => {
-      apiCalled = true;
-      requestBody = route.request().postData() ?? undefined;
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, yaml: MOCK_YAML }),
-      });
-    });
-
-    // 直接进入 /convert 页面
-    await page.goto('/convert');
-
-    // 上传文件
-    const fileInput = page.locator('input[type="file"]');
-    await fileInput.setInputFiles({
-      name: 'test.txt',
-      mimeType: 'text/plain',
-      buffer: Buffer.from(NOVEL_CONTENT, 'utf-8'),
-    });
-
-    // 等待文件信息出现
-    await expect(page.locator('[data-testid="file-info"]')).toBeVisible({ timeout: 5000 });
-
-    // 进入章节切分页
-    await page.click('[data-testid="next-btn"]');
-    await page.waitForURL('**/convert?fileId=*');
-
-    // 等待章节出现
-    await expect(page.locator('[data-testid="chapter-1"]')).toBeVisible({ timeout: 5000 });
-
-    // 触发 AI 转换
-    const btn = page.getByRole('button', { name: /开始 AI 转换/ });
-    await btn.click();
-
-    // 等待跳转到编辑器
-    await page.waitForURL('**/editor?id=*', { timeout: 30000 });
-
-    // 验证 mock API 被调用
-    expect(apiCalled).toBe(true);
+    // 12. 验证请求体包含 chapterText 字段（POST /api/convert 的 payload）
     expect(requestBody).toBeDefined();
-    // 请求体应包含 chapterText 字段（POST /api/convert 的 payload）
     expect(requestBody!).toContain('chapterText');
   });
 });
