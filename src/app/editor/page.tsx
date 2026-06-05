@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import yaml from 'js-yaml';
-import { Edit3, Download, Save, FileJson, FileText, CloudUpload, CloudDownload, Wand2 } from 'lucide-react';
+import { Edit3, Download, Save, FileJson, FileText, CloudUpload, CloudDownload, Wand2, Eye } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { YamlEditor } from '@/components/editor/YamlEditor';
@@ -27,6 +27,8 @@ function EditorContent() {
   const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 导出菜单引用（用于点击外部关闭）
   const exportMenuRef = useRef<HTMLDivElement>(null);
+  // 移动端编辑/预览切换（lg 及以上忽略此状态，始终双栏）
+  const [mobileView, setMobileView] = useState<'editor' | 'preview'>('editor');
 
   // 加载 YAML 内容
   useEffect(() => {
@@ -264,11 +266,32 @@ function EditorContent() {
         </div>
       </div>
 
-      {/* 编辑 + 预览 双栏：小屏单栏堆叠，lg 及以上双栏并排 */}
+      {/* 移动端编辑/预览切换按钮 */}
+      <div className="flex lg:hidden mb-2 gap-2">
+        <Button
+          variant={mobileView === 'editor' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setMobileView('editor')}
+          className="flex-1 gap-1.5"
+        >
+          <Edit3 className="h-3.5 w-3.5" />
+          编辑
+        </Button>
+        <Button
+          variant={mobileView === 'preview' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setMobileView('preview')}
+          className="flex-1 gap-1.5"
+        >
+          <Eye className="h-3.5 w-3.5" />
+          预览
+        </Button>
+      </div>
+
+      {/* 编辑 + 预览 双栏：小屏按 mobileView 切换显示，lg 及以上双栏并排 */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:h-[calc(100vh-200px)]">
-        {/* 移动端给每个卡片一个合适的高度，桌面端由 grid 高度驱动 */}
         {/* 编辑区 */}
-        <Card className="flex flex-col overflow-hidden h-[60vh] lg:h-auto">
+        <Card className={`flex flex-col overflow-hidden h-[70vh] lg:h-auto ${mobileView !== 'editor' ? 'hidden lg:flex' : ''}`}>
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
               <Edit3 className="h-4 w-4 text-slate-400" />
@@ -282,7 +305,7 @@ function EditorContent() {
         </Card>
 
         {/* 预览区 */}
-        <Card className="flex flex-col overflow-hidden h-[60vh] lg:h-auto">
+        <Card className={`flex flex-col overflow-hidden h-[70vh] lg:h-auto ${mobileView !== 'preview' ? 'hidden lg:flex' : ''}`}>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">预览区</CardTitle>
             <CardDescription>结构化树形预览 + 统计信息</CardDescription>
