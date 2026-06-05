@@ -104,13 +104,78 @@ Fountain 是面向**影视工业已拍摄剧本**的纯文本格式（如 `INT. 
 
 ## 4. 完整示例
 
-参见 `docs/example.yaml`。该示例覆盖：
+### 4.1 示例一：都市悬疑（完整示例见 `docs/example.yaml`）
+
+该示例覆盖：
 - 2 幕（act_number 1, 2）
 - 4 场景（含同场景续场）
 - 21 条对话（含对白 / 独白 / 旁白 / 动作 四种 type）
 - 5 个角色
 - 3 个场景地点
 - metadata 全字段
+
+### 4.2 示例二：玄幻冒险（简短示例）
+
+```yaml
+script:
+  title: "灵域秘境"
+  source: "《灵域秘境》第一章"
+  adapted_at: "2026-06-05"
+  adapter: "AI 剧本工坊"
+metadata:
+  genre: "玄幻"
+  characters:
+    - "凌天"
+    - "灵儿"
+    - "长老"
+  settings:
+    - "青云宗山门"
+    - "悟道阁"
+  summary: "凌天拜入青云宗，意外触发上古功法。"
+acts:
+  - act_number: 1
+    title: "入门"
+    scenes:
+      - scene_number: 1
+        location: "青云宗山门"
+        time: "清晨"
+        characters_present:
+          - "凌天"
+          - "长老"
+        description: "晨雾缭绕的山门前，少年凌天仰望高耸的石柱。"
+        dialogues:
+          - character: "长老"
+            type: "对白"
+            content: "你便是凌家送来的弟子？"
+            action: "捋须打量"
+          - character: "凌天"
+            type: "对白"
+            content: "正是，晚辈凌天，求入宗门。"
+          - character: "凌天"
+            type: "独白"
+            content: "（这山门的灵压……好强！）"
+          - character: "旁白"
+            type: "旁白"
+            content: "凌天感受到了一股无形的威压，那是青云宗护山大阵的气息。"
+      - scene_number: 2
+        location: "悟道阁"
+        time: "午后"
+        characters_present:
+          - "凌天"
+          - "灵儿"
+        description: "古朴的藏书阁内，阳光透过窗棂洒落。"
+        dialogues:
+          - character: "灵儿"
+            type: "对白"
+            content: "你是新来的？我叫灵儿，是这里的守阁弟子。"
+            action: "微笑"
+          - character: "凌天"
+            type: "动作"
+            content: "凌天点头致意，目光扫过满墙的功法典籍。"
+          - character: "凌天"
+            type: "对白"
+            content: "请问，这里可有关于上古灵脉的记载？"
+```
 
 ---
 
