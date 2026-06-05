@@ -97,8 +97,12 @@ export function saveNovelText(id: string, text: string): void {
   try {
     localStorage.setItem(`${NOVEL_PREFIX}${id}`, text);
   } catch (e) {
-    // localStorage 容量不足（~5MB 限制），静默失败
+    // localStorage 容量不足时提示用户
+    if (e instanceof DOMException && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
+      throw new Error('存储空间不足，建议导出或删除旧项目后重试');
+    }
     console.error('保存小说文本失败:', e);
+    throw new Error('保存小说文本失败');
   }
 }
 
@@ -116,6 +120,9 @@ export function saveYamlContent(id: string, yaml: string): void {
   try {
     localStorage.setItem(`yaml-${id}`, yaml);
   } catch (e) {
+    if (e instanceof DOMException && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
+      throw new Error('存储空间不足，建议导出或删除旧项目后重试');
+    }
     console.error('保存 YAML 失败:', e);
   }
 }
