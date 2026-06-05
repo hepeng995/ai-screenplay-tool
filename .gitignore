@@ -55,3 +55,12 @@ Thumbs.db
 
 .dev-server.log
 
+
+# Impeccable design tooling
+.impeccable/
+
+# Playwright MCP
+.playwright-mcp/
+
+# Critique screenshots
+homepage-*.png

@@ -215,8 +215,8 @@ export default function Home() {
 
   return (
     <div className="mx-auto max-w-6xl px-6">
-      {/* ─── Hero 区域：左对齐排版驱动 ─── */}
-      <section className="pt-20 pb-16 md:pt-24 md:pb-20">
+      {/* ─── Hero 区域 ─── */}
+      <section className="pt-24 pb-16 md:pt-32 md:pb-20">
         <div className="max-w-2xl">
           <motion.h1
             {...animConfig(0)}
@@ -226,13 +226,13 @@ export default function Home() {
           </motion.h1>
           <motion.p
             {...animConfig(0.08)}
-            className="mt-5 text-lg text-zinc-500 dark:text-zinc-400 max-w-[520px] leading-relaxed"
+            className="mt-6 text-lg text-zinc-500 dark:text-zinc-400 max-w-[480px] leading-relaxed"
           >
-            上传小说文本，AI 自动切分章节并转换为结构化 YAML 剧本，降低改编门槛，提升创作效率
+            上传小说文本，AI 自动完成章节切分与剧本转换，专注创作即可
           </motion.p>
           <motion.div
             {...animConfig(0.16)}
-            className="mt-8 flex items-center gap-3"
+            className="mt-8 flex flex-wrap items-center gap-3"
           >
             <Link href="/convert">
               <Button size="lg" className="gap-2">
@@ -254,6 +254,12 @@ export default function Home() {
               体验示例
             </Button>
           </motion.div>
+          <motion.p
+            {...animConfig(0.24)}
+            className="mt-5 text-xs text-zinc-400 dark:text-zinc-500"
+          >
+            无需注册 · 完全免费 · 数据仅存于本地浏览器
+          </motion.p>
         </div>
       </section>
 
@@ -277,7 +283,7 @@ export default function Home() {
                   <Icon className="h-4 w-4 text-teal-600 dark:text-teal-400" />
                 </div>
                 <div className="min-w-0">
-                  <span className="text-[10px] text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Step {i + 1}</span>
+                  <span className="text-[10px] text-zinc-400 dark:text-zinc-500">第 {i + 1} 步</span>
                   <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">{step.label}</p>
                 </div>
               </div>
@@ -307,23 +313,16 @@ export default function Home() {
               <Link href={href} className="block h-full">
                 <div
                   className={`
-                    group relative h-full rounded-xl border p-6 transition-all duration-200 cursor-pointer overflow-hidden
+                    group h-full rounded-xl border p-6 transition-all duration-200 cursor-pointer
                     ${variant === 'accent'
-                      ? 'border-teal-200 bg-gradient-to-br from-teal-50 to-white hover:border-teal-300 hover:shadow-md dark:border-teal-900 dark:from-teal-950/30 dark:to-zinc-900 dark:hover:border-teal-800'
+                      ? 'border-teal-200 bg-teal-50/60 hover:border-teal-300 hover:shadow-md dark:border-teal-800 dark:bg-teal-950/20 dark:hover:border-teal-700'
                       : variant === 'wide'
                         ? 'border-zinc-200 bg-white hover:border-zinc-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700'
                         : 'border-zinc-200 bg-white hover:border-teal-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-teal-800'
                     }
                   `}
                 >
-                  {/* 装饰性渐变圆 */}
-                  {variant === 'accent' && (
-                    <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-teal-100/50 blur-2xl dark:bg-teal-900/20" />
-                  )}
-                  {variant === 'wide' && (
-                    <div className="absolute -right-10 -bottom-10 h-32 w-32 rounded-full bg-teal-100/30 blur-3xl dark:bg-teal-900/10" />
-                  )}
-                  <div className="relative">
+                  <div>
                     <div className="flex items-center gap-3 mb-3">
                       <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${
                         variant === 'accent'
@@ -367,6 +366,7 @@ export default function Home() {
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
                   placeholder="搜索项目..."
+                  aria-label="搜索项目"
                   className="pl-8 pr-3 py-1.5 text-sm rounded-lg border border-zinc-200 bg-white outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 w-36 transition-colors dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-teal-500"
                 />
               </div>
@@ -374,6 +374,7 @@ export default function Home() {
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value as typeof filterStatus)}
+                aria-label="按状态筛选"
                 className="text-sm rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 outline-none focus:border-teal-400 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:focus:border-teal-500"
               >
                 <option value="all">全部状态</option>
@@ -401,10 +402,13 @@ export default function Home() {
           )}
         </div>
         {recentProjects.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700 py-12 text-center">
+          <div className="rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700 py-16 text-center">
             <FileText className="mx-auto h-12 w-12 text-zinc-300 dark:text-zinc-600" />
-            <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">
-              尚未创建项目，点击上方「开始创作」开始
+            <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">
+              尚未创建项目
+            </p>
+            <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+              点击上方「开始创作」上传小说，或「体验示例」快速预览效果
             </p>
           </div>
         ) : filteredProjects.length === 0 ? (
@@ -418,7 +422,7 @@ export default function Home() {
           <div className="space-y-2">
             {/* 批量操作工具条 */}
             {selectedIds.size > 0 && (
-              <div className="flex items-center gap-2 text-sm text-zinc-600 bg-teal-50 rounded-lg px-3 py-2 dark:bg-teal-950/20 dark:text-teal-300">
+              <div className="flex items-center gap-2 text-sm text-teal-800 bg-teal-50 rounded-lg px-3 py-2 dark:bg-teal-950/20 dark:text-teal-200">
                 <span className="font-medium">已选 {selectedIds.size} 项</span>
                 <Button
                   variant="ghost"
@@ -457,7 +461,7 @@ export default function Home() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  className="text-teal-700 hover:bg-teal-100 dark:text-teal-300 dark:hover:bg-teal-950/30"
                   onClick={() => setSelectedIds(new Set())}
                 >
                   取消选择
@@ -481,6 +485,7 @@ export default function Home() {
                       return next;
                     });
                   }}
+                  aria-label={`选择 ${proj.title}`}
                   className="h-4 w-4 rounded border-zinc-300 text-teal-600 mr-3 flex-shrink-0 cursor-pointer dark:border-zinc-600 dark:bg-zinc-800"
                 />
                 <Link
@@ -518,13 +523,13 @@ export default function Home() {
                     );
                   })()}
                   {proj.chapterCount > 0 && (
-                    <span className="text-xs text-zinc-400 dark:text-zinc-500">{proj.chapterCount} 章</span>
+                    <span className="text-xs text-zinc-400 dark:text-zinc-500 hidden sm:inline">{proj.chapterCount} 章</span>
                   )}
                   {proj.qiniuKey && (
                     <span className="text-xs text-sky-400 dark:text-sky-500">☁</span>
                   )}
-                  <span className="text-xs text-zinc-400 dark:text-zinc-500">{proj.updatedAt}</span>
-                  {/* 悬停显示的操作按钮 */}
+                  <span className="text-xs text-zinc-400 dark:text-zinc-500 hidden sm:inline">{proj.updatedAt}</span>
+                  {/* 操作按钮：移动端始终可见，桌面端 hover 显示 */}
                   {renameId === proj.id ? (
                     <>
                       <button
@@ -545,7 +550,7 @@ export default function Home() {
                       </button>
                     </>
                   ) : (
-                    <div className="hidden group-hover:flex items-center gap-1">
+                    <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
                       <button
                         type="button"
                         onClick={(e) => {

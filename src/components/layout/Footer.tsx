@@ -13,7 +13,7 @@ export function Footer() {
               AI 剧本工坊
             </span>
           </div>
-          <span className="hidden sm:inline text-xs text-zinc-400 dark:text-zinc-600">
+          <span className="hidden sm:inline text-xs text-zinc-500 dark:text-zinc-400">
             七牛云校园编程大赛参赛项目
           </span>
         </div>
