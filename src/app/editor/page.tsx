@@ -1,61 +1,124 @@
 'use client';
 
-import { FileText, Edit3, Download } from 'lucide-react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Edit3, Download, Save, Upload as UploadIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { YamlEditor } from '@/components/editor/YamlEditor';
+import { YamlPreview } from '@/components/editor/YamlPreview';
+import { loadYamlContent, saveYamlContent, loadProject, saveProject } from '@/lib/utils/storage';
 
-export default function EditorPage() {
+function EditorContent() {
+  const searchParams = useSearchParams();
+  const projectId = searchParams.get('id');
+
+  const [yamlContent, setYamlContent] = useState('');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
+
+  // 加载 YAML 内容
+  useEffect(() => {
+    if (!projectId) return;
+    const yaml = loadYamlContent(projectId);
+    if (yaml) {
+      setYamlContent(yaml);
+    }
+  }, [projectId]);
+
+  // 自动保存（每 5 秒）
+  useEffect(() => {
+    if (!projectId || !yamlContent) return;
+    const timer = setTimeout(() => {
+      saveYamlContent(projectId, yamlContent);
+      setSaveStatus('saved');
+      const project = loadProject(projectId);
+      if (project) {
+        project.status = 'edited';
+        saveProject(project);
+      }
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [yamlContent, projectId]);
+
+  const handleManualSave = useCallback(() => {
+    if (!projectId) return;
+    saveYamlContent(projectId, yamlContent);
+    setSaveStatus('saved');
+    setTimeout(() => setSaveStatus('idle'), 2000);
+  }, [projectId, yamlContent]);
+
+  const handleExport = useCallback(() => {
+    const blob = new Blob([yamlContent], { type: 'text/yaml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `script-${projectId ?? 'export'}.yaml`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [yamlContent, projectId]);
+
   return (
-    <div className="mx-auto max-w-6xl px-6 py-12">
-      <h1 className="text-3xl font-bold text-slate-900 mb-2">YAML 剧本编辑器</h1>
-      <p className="text-slate-500 mb-8">在线编辑、校验、预览和导出 YAML 剧本</p>
+    <div className="mx-auto max-w-7xl px-6 py-8">
+      {/* 顶部工具栏 */}
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">YAML 剧本编辑器</h1>
+          <p className="text-sm text-slate-500">在线编辑 · 实时校验 · 多格式导出</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {saveStatus === 'saved' && (
+            <span className="text-xs text-green-600">已保存</span>
+          )}
+          <Button variant="outline" size="sm" onClick={handleManualSave} className="gap-1.5">
+            <Save className="h-3.5 w-3.5" />
+            保存
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5">
+            <Download className="h-3.5 w-3.5" />
+            导出 YAML
+          </Button>
+          <Button variant="outline" size="sm" disabled className="gap-1.5" title="七牛云上传（待实现）">
+            <UploadIcon className="h-3.5 w-3.5" />
+            上传云端
+          </Button>
+        </div>
+      </div>
 
-      <div className="grid grid-cols-2 gap-6">
-        {/* 编辑区（占位） */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Edit3 className="h-5 w-5 text-slate-400" />
-                <CardTitle>编辑区</CardTitle>
-              </div>
-              <span className="text-xs text-slate-400">YAML</span>
+      {/* 编辑 + 预览 双栏 */}
+      <div className="grid grid-cols-2 gap-4 h-[calc(100vh-200px)]">
+        {/* 编辑区 */}
+        <Card className="flex flex-col overflow-hidden">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Edit3 className="h-4 w-4 text-slate-400" />
+              <CardTitle className="text-base">编辑区</CardTitle>
             </div>
-            <CardDescription>实时语法校验 + Schema 结构校验</CardDescription>
+            <CardDescription>实时语法校验 + Schema 结构校验（Ctrl+S 保存）</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="h-96 rounded-md bg-slate-900 p-4 font-mono text-sm text-slate-300 overflow-auto">
-              <pre>{`# YAML 剧本内容将显示在此处
-# 上传并转换后自动填充`}</pre>
-            </div>
+          <CardContent className="flex-1 p-0 overflow-hidden">
+            <YamlEditor value={yamlContent} onChange={setYamlContent} onSave={handleManualSave} />
           </CardContent>
         </Card>
 
-        {/* 预览区（占位） */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-slate-400" />
-                <CardTitle>预览区</CardTitle>
-              </div>
-              <Button variant="outline" size="sm" disabled>
-                <Download className="mr-1.5 h-3.5 w-3.5" />
-                导出
-              </Button>
-            </div>
-            <CardDescription>结构化预览剧本内容</CardDescription>
+        {/* 预览区 */}
+        <Card className="flex flex-col overflow-hidden">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">预览区</CardTitle>
+            <CardDescription>结构化树形预览 + 统计信息</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="h-96 rounded-md bg-slate-50 flex items-center justify-center">
-              <div className="text-center text-slate-400">
-                <FileText className="mx-auto h-8 w-8 mb-2" />
-                <p className="text-sm">预览将在编辑时实时更新</p>
-              </div>
-            </div>
+          <CardContent className="flex-1 p-0 overflow-hidden">
+            <YamlPreview yamlContent={yamlContent} />
           </CardContent>
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function EditorPage() {
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-7xl px-6 py-8">加载中...</div>}>
+      <EditorContent />
+    </Suspense>
   );
 }
