@@ -13,18 +13,18 @@ interface YamlEditorProps {
 export function YamlEditor({ value, onChange, onSave }: YamlEditorProps) {
   const [validationStatus, setValidationStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [scrollTop, setScrollTop] = useState(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const lineNumbersRef = useRef<HTMLDivElement>(null);
 
-  // 计算行号数组（行号从 1 开始）
-  const lineCount = value.split('\n').length;
+  // 计算行号数组（行号从 1 开始；尾部换行不产生幽灵行号）
+  const lineCount = value === '' ? 1 : value.split('\n').length - (value.endsWith('\n') ? 1 : 0);
   const lineNumbers = Array.from({ length: Math.max(lineCount, 1) }, (_, i) => i + 1);
 
-  // textarea 滚动同步到行号列
+  // textarea 滚动同步到行号列（直接操作 DOM，避免 React state 渲染延迟）
   const handleScroll = useCallback(() => {
-    if (textareaRef.current) {
-      setScrollTop(textareaRef.current.scrollTop);
+    if (textareaRef.current && lineNumbersRef.current) {
+      lineNumbersRef.current.style.transform = `translateY(${-textareaRef.current.scrollTop}px)`;
     }
   }, []);
 
@@ -74,10 +74,10 @@ export function YamlEditor({ value, onChange, onSave }: YamlEditorProps) {
   }, [onSave]);
 
   const statusDisplay = {
-    idle: { icon: null, text: '', color: '' },
+    idle: { icon: null, text: '', color: '', spin: false },
     checking: { icon: Loader2, text: '校验中...', color: 'text-slate-500', spin: true },
-    valid: { icon: CheckCircle2, text: '校验通过', color: 'text-green-600' },
-    invalid: { icon: AlertCircle, text: '校验失败', color: 'text-red-600' },
+    valid: { icon: CheckCircle2, text: '校验通过', color: 'text-green-600', spin: false },
+    invalid: { icon: AlertCircle, text: '校验失败', color: 'text-red-600', spin: false },
   }[validationStatus];
 
   const StatusIcon = statusDisplay.icon;
@@ -88,7 +88,7 @@ export function YamlEditor({ value, onChange, onSave }: YamlEditorProps) {
       <div data-testid="validation-status" className="flex items-center justify-between px-3 py-2 border-b border-slate-700 bg-slate-800">
         <div className="flex items-center gap-2">
           {StatusIcon && (
-            <StatusIcon className={`h-4 w-4 ${statusDisplay.color} ${(statusDisplay as { spin?: boolean }).spin ? 'animate-spin' : ''}`} />
+            <StatusIcon className={`h-4 w-4 ${statusDisplay.color} ${statusDisplay.spin ? 'animate-spin' : ''}`} />
           )}
           <span className={`text-sm ${statusDisplay.color}`}>{statusDisplay.text}</span>
         </div>
@@ -108,9 +108,9 @@ export function YamlEditor({ value, onChange, onSave }: YamlEditorProps) {
       <div className="flex flex-1 overflow-hidden">
         {/* 行号列 */}
         <div
+          ref={lineNumbersRef}
           aria-hidden="true"
           className="flex-shrink-0 select-none pointer-events-none overflow-hidden bg-slate-800 text-slate-500 font-mono text-sm text-right pr-2 pl-2 pt-4"
-          style={{ transform: `translateY(${-scrollTop}px)` }}
         >
           {lineNumbers.map((num) => (
             <div key={num} className="leading-6">
