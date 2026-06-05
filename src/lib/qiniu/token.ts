@@ -145,7 +145,7 @@ export async function generateDownloadUrl(
   }
 
   // 基础 URL
-  const baseUrl = `https://${domain}/${encodeURIComponent(key)}`;
+  const baseUrl = `http://${domain}/${encodeURIComponent(key)}`;
 
   // 添加过期时间戳
   const deadline = Math.floor(Date.now() / 1000) + expiresInSeconds;

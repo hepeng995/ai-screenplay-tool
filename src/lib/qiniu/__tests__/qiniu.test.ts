@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 七牛云 Token 生成 + 上传/下载 集成测试（Mock）
  * T4.2: 使用 Mock 验证七牛云集成代码逻辑
  */
@@ -67,7 +67,7 @@ describe('Qiniu Token Generation', () => {
 
     const url = await generateDownloadUrl('test-file.yaml', 3600);
 
-    expect(url).toContain('https://cdn.example.com/');
+    expect(url).toContain('http://cdn.example.com/');
     expect(url).toContain('e=');
     expect(url).toContain('token=test_ak');
   });
