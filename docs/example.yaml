@@ -1,0 +1,143 @@
+# 完整剧本 YAML 示例
+# 此文件用于：
+#   1. 展示 Schema 的最小完整可用形态
+#   2. 作为 scripts/validate-yaml.ts 的回归测试样本
+#   3. 作为 AI Prompt 中的 Few-shot 示例参考
+#
+# 内容源自 PoC 验证过的小说样本（《深夜来电》第一章），略作改编以覆盖：
+#   - 多幕（2 幕）
+#   - 多场景（4 场景）
+#   - 多种 type（对白 / 独白 / 旁白 / 动作）
+#   - 多角色（5 个角色）
+#   - metadata 全字段
+
+script:
+  title: "深夜来电·第一章剧本"
+  source: "《深夜来电》第一章 山雨欲来"
+  adapted_at: "2026-06-05"
+  adapter: "mimo-v2.5 + feiyu"
+
+metadata:
+  genre: "悬疑"
+  characters:
+    - "林晚秋"
+    - "小翠"
+    - "沈逸舟"
+    - "林怀远"
+    - "周大人"
+  settings:
+    - "乌衣巷"
+    - "林府客厅"
+    - "林府书房"
+  summary: "林晚秋在乌衣巷偶遇沈逸舟，回府后父亲告知京中周大人登门提亲，平静生活骤起波澜。"
+
+acts:
+  - act_number: 1
+    title: "偶遇"
+    scenes:
+      - scene_number: 1
+        location: "乌衣巷"
+        time: "梅雨季的白天"
+        characters_present: ["林晚秋", "小翠", "沈逸舟"]
+        description: "江南梅雨绵绵，乌衣巷青石板路湿滑。林晚秋与小翠撑伞路过巷口老槐树，发现一位年轻公子正蹲在地上为乌鸦包扎。"
+        dialogues:
+          - character: "小翠"
+            type: "对白"
+            content: "小姐，这雨下得没完没了，咱们还是快些回府吧。老爷说了，今晚有贵客登门。"
+            action: "轻声抱怨，紧了紧油纸伞"
+          - character: "林晚秋"
+            type: "对白"
+            content: "公子，您在做什么？"
+            action: "停下脚步，看向巷口老槐树，走近几步"
+          - character: "沈逸舟"
+            type: "对白"
+            content: "在下沈逸舟，路经此地，见这只乌鸦受了伤，想帮它包扎一下。"
+            action: "转过头，微微一笑"
+          - character: "林晚秋"
+            type: "独白"
+            content: "（这公子眉宇清朗，不像是寻常路人……乌鸦……莫非是某种征兆？）"
+            action: "心头微动，目光落在那只乌鸦身上"
+          - character: "林晚秋"
+            type: "对白"
+            content: "雨这么大，公子一人也不方便。我来帮你。"
+            action: "将油纸伞遮在沈逸舟头顶"
+          - character: "旁白"
+            type: "旁白"
+            content: "乌鸦在两人手中发出一声低鸣，似是感激。雨势未减，巷子深处传来远远的更鼓声。"
+      - scene_number: 2
+        location: "林府客厅"
+        time: "同一天傍晚"
+        characters_present: ["林晚秋", "林怀远", "周大人"]
+        description: "林府客厅灯烛通明。林怀远面色凝重坐在主位，京中来的周大人手捻胡须，目光在林晚秋身上打量。"
+        dialogues:
+          - character: "周大人"
+            type: "对白"
+            content: "怀远兄，这就是你那位才名远播的女儿？果然名不虚传。"
+            action: "眼神一亮，抚掌而笑"
+          - character: "林怀远"
+            type: "对白"
+            content: "晚秋，这位是京里来的周大人。快见过。"
+            action: "咳嗽一声，朝女儿使了个眼色"
+          - character: "林晚秋"
+            type: "对白"
+            content: "民女林晚秋，见过周大人。"
+            action: "盈盈一拜"
+          - character: "周大人"
+            type: "对白"
+            content: "怀远兄，令爱的婚事，你我之事，今日是否可以定下来了？"
+            action: "捋着胡须，目光灼灼"
+          - character: "林怀远"
+            type: "动作"
+            content: "林怀远猛地握紧扶手，茶盏在桌上震出一圈涟漪。"
+            action: "面色铁青，沉默不语"
+
+  - act_number: 2
+    title: "暗流"
+    scenes:
+      - scene_number: 1
+        location: "林府书房"
+        time: "周大人告辞后的夜晚"
+        characters_present: ["林晚秋", "林怀远"]
+        description: "书房内烛火摇曳，墙上一幅《烟雨江南图》被风吹得微微晃动。林怀远负手立于窗前，背影显得格外苍老。"
+        dialogues:
+          - character: "林怀远"
+            type: "独白"
+            content: "（周懋章此番来者不善，二十年前那桩旧案，怕是要被翻出来了……）"
+            action: "望着窗外夜雨，长叹一声"
+          - character: "林晚秋"
+            type: "对白"
+            content: "爹，今日周大人提及的婚事，究竟是怎么回事？"
+            action: "推门而入，神色凝重"
+          - character: "林怀远"
+            type: "对白"
+            content: "晚秋，有些事……爹本想等你再大些再告诉你。可如今，怕是瞒不住了。"
+            action: "转过身，目光复杂"
+          - character: "旁白"
+            type: "旁白"
+            content: "窗外一道闪电划破夜空，照亮了林怀远鬓边的白发。雷声隐隐，远处的乌衣巷似乎又传来了那只乌鸦的鸣叫。"
+      - scene_number: 2
+        location: "林府书房"
+        time: "紧接上一场"
+        characters_present: ["林晚秋", "林怀远"]
+        description: "林怀远从书架暗格中取出一个陈旧的木匣，缓缓放在桌上。"
+        dialogues:
+          - character: "林怀远"
+            type: "对白"
+            content: "这匣子里，是你爷爷留下来的东西。当年他临终前叮嘱我，若林家遭逢大难，方可打开。"
+            action: "缓缓开启木匣"
+          - character: "林晚秋"
+            type: "对白"
+            content: "爷爷？可是爷爷三十年前就已仙逝……"
+            action: "屏息凝视"
+          - character: "林怀远"
+            type: "对白"
+            content: "晚秋，听我说。林家的《烟雨剑谱》，并不只是一套剑法。"
+            action: "目光变得锐利"
+          - character: "林晚秋"
+            type: "独白"
+            content: "（《烟雨剑谱》……今晨在乌衣巷，那只乌鸦脚上系的竹管里，似乎也刻着'烟雨'二字……这之间，究竟有什么关联？）"
+            action: "心头剧震，却强自镇定"
+          - character: "林怀远"
+            type: "对白"
+            content: "明日我会派人送你去城外的听竹小筑，找你大伯父林云溪。他——会告诉你一切。"
+            action: "合上木匣，推到女儿面前"

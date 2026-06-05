@@ -1,0 +1,181 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ai-screenplay-tool.local/schema/script.schema.json",
+  "title": "Script",
+  "description": "AI 辅助剧本创作工具的核心 Schema。将小说文本转换为结构化剧本 YAML，包含 5 层嵌套：script / metadata / acts / scenes / dialogues。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["script", "metadata", "acts"],
+  "properties": {
+    "script": {
+      "type": "object",
+      "description": "根元信息：剧本自身的基本标识。",
+      "additionalProperties": false,
+      "required": ["title", "source", "adapted_at"],
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "剧本标题。",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "description": "原小说名称（可包含章节信息）。",
+          "minLength": 1
+        },
+        "adapted_at": {
+          "type": "string",
+          "format": "date",
+          "description": "改编日期，ISO 8601 格式 YYYY-MM-DD。"
+        },
+        "adapter": {
+          "type": "string",
+          "description": "改编者署名（如 'mimo-v2.5 + 用户名'）。"
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "剧本元数据：角色表、地点表与概要，便于前端快速检索和过滤。",
+      "additionalProperties": false,
+      "required": ["characters"],
+      "properties": {
+        "genre": {
+          "type": "string",
+          "description": "题材类型：玄幻 / 言情 / 悬疑 / 都市 / 科幻 等。",
+          "enum": ["玄幻", "言情", "悬疑", "都市", "科幻", "武侠", "历史", "其他"]
+        },
+        "characters": {
+          "type": "array",
+          "description": "剧本中所有出场角色姓名列表（去重）。",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "settings": {
+          "type": "array",
+          "description": "所有场景地点列表（去重），用于场景速览。",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "summary": {
+          "type": "string",
+          "description": "一段话概要（建议 ≤ 200 字）。"
+        }
+      }
+    },
+    "acts": {
+      "type": "array",
+      "description": "幕列表。一幕对应小说中一个相对完整的故事弧（通常以章节为单位）。",
+      "items": {
+        "$ref": "#/$defs/act"
+      },
+      "minItems": 1
+    }
+  },
+  "$defs": {
+    "act": {
+      "type": "object",
+      "description": "一幕：若干场景构成的故事单元。",
+      "additionalProperties": false,
+      "required": ["act_number", "title", "scenes"],
+      "properties": {
+        "act_number": {
+          "type": "integer",
+          "description": "幕序号，从 1 开始递增。",
+          "minimum": 1
+        },
+        "title": {
+          "type": "string",
+          "description": "幕标题。",
+          "minLength": 1
+        },
+        "scenes": {
+          "type": "array",
+          "description": "场景列表（同一幕内的时空连续片段）。",
+          "items": {
+            "$ref": "#/$defs/scene"
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "scene": {
+      "type": "object",
+      "description": "一个场景：固定时间地点内的一段连续戏剧动作。",
+      "additionalProperties": false,
+      "required": ["scene_number", "location", "characters_present", "dialogues"],
+      "properties": {
+        "scene_number": {
+          "type": "integer",
+          "description": "场景序号（在当前幕内从 1 开始）。",
+          "minimum": 1
+        },
+        "location": {
+          "type": "string",
+          "description": "场景地点。",
+          "minLength": 1
+        },
+        "time": {
+          "type": "string",
+          "description": "时间设定（如 '清晨' / '夜晚' / '同一天傍晚'）。"
+        },
+        "characters_present": {
+          "type": "array",
+          "description": "当前场景中在场角色列表（必须为 metadata.characters 的子集）。",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "description": {
+          "type": "string",
+          "description": "场景视觉/氛围描述，供导演和美术参考。"
+        },
+        "dialogues": {
+          "type": "array",
+          "description": "对话列表：对白 / 独白 / 旁白 / 动作 按时间顺序排列。",
+          "items": {
+            "$ref": "#/$defs/dialogue"
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "dialogue": {
+      "type": "object",
+      "description": "单条台词或动作说明。",
+      "additionalProperties": false,
+      "required": ["character", "type", "content"],
+      "properties": {
+        "character": {
+          "type": "string",
+          "description": "说话人或动作主体（旁白可填 '旁白'）。",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "description": "条目类型。使用中文枚举以对齐 AI 的中文输出习惯。",
+          "enum": ["对白", "独白", "旁白", "动作"]
+        },
+        "content": {
+          "type": "string",
+          "description": "台词正文 / 旁白文本 / 动作描述。",
+          "minLength": 1
+        },
+        "action": {
+          "type": "string",
+          "description": "可选的动作说明 / 神态指示，用于辅助表演。"
+        }
+      }
+    }
+  }
+}
