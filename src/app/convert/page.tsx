@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { FileUploader } from '@/components/upload/FileUploader';
 import { splitChapters, type Chapter } from '@/lib/utils/chapter-splitter';
 import { loadNovelText, saveYamlContent, saveProject, loadProject } from '@/lib/utils/storage';
+import { mergeYamlChapters } from '@/lib/utils/yaml-merger';
 
 function ConvertContent() {
   const router = useRouter();
@@ -187,16 +188,4 @@ export default function ConvertPage() {
       <ConvertContent />
     </Suspense>
   );
-}
-
-/**
- * 合并多章节 YAML 为一个完整剧本
- */
-function mergeYamlChapters(yamls: string[]): string {
-  if (yamls.length === 0) return '';
-  if (yamls.length === 1) return yamls[0];
-
-  // 简单合并策略：以第一个 YAML 为基础，后续 YAML 的 acts 追加
-  // 实际生产中应解析后合并，MVP 简化处理
-  return `# AI 生成的 YAML 剧本（${yamls.length} 章合并）\n\n${yamls.join('\n\n---\n\n')}`;
 }
