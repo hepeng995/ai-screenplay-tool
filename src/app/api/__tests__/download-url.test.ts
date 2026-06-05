@@ -76,7 +76,7 @@ describe('GET /api/download-url', () => {
     expect(res.status).toBe(500);
     const json = await res.json();
     expect(json.success).toBe(false);
-    // 非 Error 类型走 fallback message
-    expect(json.error).toBe('生成下载 URL 失败');
+    // 非 Error 类型走统一 fallback message（PR-04 withErrorHandler）
+    expect(json.error).toBe('服务器内部错误');
   });
 });
