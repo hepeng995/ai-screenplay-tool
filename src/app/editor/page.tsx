@@ -1,16 +1,19 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import yaml from 'js-yaml';
 import { Edit3, Download, Save, FileJson, FileText, CloudUpload, CloudDownload, Wand2, Eye } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Dialog } from '@/components/ui/dialog';
 import { YamlEditor } from '@/components/editor/YamlEditor';
 import { YamlPreview } from '@/components/editor/YamlPreview';
 import { loadYamlContent, saveYamlContent, loadProject, saveProject } from '@/lib/utils/storage';
 import { uploadToQiniu } from '@/lib/qiniu/upload';
 import { downloadFromQiniu } from '@/lib/qiniu/download';
+import { validateYaml } from '@/lib/utils/yaml-validator';
 import { toast } from '@/lib/utils/toast';
 
 function EditorContent() {
@@ -20,6 +23,7 @@ function EditorContent() {
   const [yamlContent, setYamlContent] = useState('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
   const [lastSavedAt, setLastSavedAt] = useState<string>('');
+  const [projectName, setProjectName] = useState<string>('');
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [cloudStatus, setCloudStatus] = useState<'idle' | 'uploading' | 'downloading' | 'success' | 'error'>('idle');
   const [cloudMessage, setCloudMessage] = useState<string>('');
@@ -27,23 +31,39 @@ function EditorContent() {
   const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 导出菜单引用（用于点击外部关闭）
   const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  // 共享的 YAML 校验结果（编辑器和预览区共用，单一事实来源）
+  const validationResult = useMemo(() => {
+    if (!yamlContent || !yamlContent.trim()) return null;
+    return validateYaml(yamlContent);
+  }, [yamlContent]);
   // 移动端编辑/预览切换（lg 及以上忽略此状态，始终双栏）
   const [mobileView, setMobileView] = useState<'editor' | 'preview'>('editor');
 
-  // 加载 YAML 内容
+  // 记录上次保存的内容，避免无变化时触发保存
+  const lastSavedContentRef = useRef<string>('');
+
+  // 加载项目信息和 YAML 内容
   useEffect(() => {
     if (!projectId) return;
+    const project = loadProject(projectId);
+    if (project) {
+      setProjectName(project.name);
+    }
     const yamlText = loadYamlContent(projectId);
     if (yamlText) {
       setYamlContent(yamlText);
+      // 初始加载时同步 ref，避免立即触发无意义的保存
+      lastSavedContentRef.current = yamlText;
     }
   }, [projectId]);
-
-  // 自动保存（每 5 秒）
   useEffect(() => {
     if (!projectId || !yamlContent) return;
+    // 内容与上次保存一致，跳过
+    if (yamlContent === lastSavedContentRef.current) return;
     const timer = setTimeout(() => {
       saveYamlContent(projectId, yamlContent);
+      lastSavedContentRef.current = yamlContent;
       setSaveStatus('saved');
       setLastSavedAt(new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
       const project = loadProject(projectId);
@@ -51,7 +71,7 @@ function EditorContent() {
         project.status = 'edited';
         saveProject(project);
       }
-    }, 5000);
+    }, 3000);
     return () => clearTimeout(timer);
   }, [yamlContent, projectId]);
 
@@ -160,8 +180,20 @@ function EditorContent() {
     }
   }, [projectId, yamlContent]);
 
-  // 七牛云下载
+  // 七牛云下载确认（本地有内容时先确认）
+  const [showCloudDownloadConfirm, setShowCloudDownloadConfirm] = useState(false);
+
+  const handleCloudDownloadClick = useCallback(() => {
+    // 本地有内容时先弹出确认，防止覆盖
+    if (yamlContent.trim()) {
+      setShowCloudDownloadConfirm(true);
+    } else {
+      handleCloudDownload();
+    }
+  }, [yamlContent]);
+
   const handleCloudDownload = useCallback(async () => {
+    setShowCloudDownloadConfirm(false);
     if (!projectId) return;
     const project = loadProject(projectId);
     if (!project?.qiniuKey) {
@@ -193,18 +225,50 @@ function EditorContent() {
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8">
+      {/* 无项目时的空状态引导 */}
+      {!projectId ? (
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <Edit3 className="h-16 w-16 text-zinc-200 dark:text-zinc-700 mb-4" />
+          <h2 className="text-xl font-semibold text-zinc-700 dark:text-zinc-300 mb-2">未选择项目</h2>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">请先从首页选择或创建一个项目</p>
+          <Link href="/">
+            <Button className="gap-2">
+              <FileText className="h-4 w-4" />
+              返回首页
+            </Button>
+          </Link>
+        </div>
+      ) : (
+      <>
+      {/* 面包屑 */}
+      <nav className="mb-3 text-sm text-zinc-500 dark:text-zinc-400">
+        <Link href="/" className="hover:text-teal-600 dark:hover:text-teal-400">首页</Link>
+        <span className="mx-1.5">/</span>
+        <span className="text-zinc-900 dark:text-zinc-100 font-medium">YAML 剧本编辑器</span>
+        {projectName && (
+          <>
+            <span className="mx-1.5">/</span>
+            <span className="text-teal-600 dark:text-teal-400">{projectName}</span>
+          </>
+        )}
+      </nav>
       {/* 顶部工具栏 */}
       <div className="mb-4 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">YAML 剧本编辑器</h1>
-          <p className="text-sm text-slate-500">在线编辑 · 实时校验 · 多格式导出 · 云端同步</p>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+            YAML 剧本编辑器
+            {projectName && (
+              <span className="ml-2 text-base font-normal text-teal-600 dark:text-teal-400">· {projectName}</span>
+            )}
+          </h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">在线编辑 · 实时校验 · 多格式导出 · 云端同步</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {saveStatus === 'saved' && lastSavedAt && (
-            <span className="text-xs text-green-600">✓ 已保存 {lastSavedAt}</span>
+            <span className="text-xs text-emerald-600 dark:text-emerald-400">✓ 已保存 {lastSavedAt}</span>
           )}
           {cloudMessage && (
-            <span data-testid="cloud-status" className={`text-xs ${cloudStatus === 'error' ? 'text-red-600' : cloudStatus === 'success' ? 'text-green-600' : 'text-blue-600'}`}>
+            <span data-testid="cloud-status" className={`text-xs ${cloudStatus === 'error' ? 'text-red-600 dark:text-red-400' : cloudStatus === 'success' ? 'text-emerald-600 dark:text-emerald-400' : 'text-sky-600 dark:text-sky-400'}`}>
               {cloudMessage}
             </span>
           )}
@@ -223,19 +287,19 @@ function EditorContent() {
               导出
             </Button>
             {showExportMenu && (
-              <div className="absolute right-0 mt-1 w-44 rounded-md border border-slate-200 bg-white shadow-lg z-10">
+              <div className="absolute right-0 mt-1 w-44 rounded-lg border border-zinc-200 bg-white shadow-lg z-10 dark:border-zinc-700 dark:bg-zinc-900">
                 <button
                   onClick={handleExportYaml}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-t-lg"
                 >
-                  <FileText className="h-4 w-4 text-slate-400" />
+                  <FileText className="h-4 w-4 text-zinc-400" />
                   导出 YAML
                 </button>
                 <button
                   onClick={handleExportJson}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 border-t border-slate-100"
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 border-t border-zinc-100 dark:border-zinc-800 rounded-b-lg"
                 >
-                  <FileJson className="h-4 w-4 text-slate-400" />
+                  <FileJson className="h-4 w-4 text-zinc-400" />
                   导出 JSON
                 </button>
               </div>
@@ -255,7 +319,7 @@ function EditorContent() {
           <Button
             variant="outline"
             size="sm"
-            onClick={handleCloudDownload}
+            onClick={handleCloudDownloadClick}
             disabled={cloudStatus === 'uploading' || cloudStatus === 'downloading'}
             className="gap-1.5"
             title="从七牛云载入"
@@ -265,6 +329,17 @@ function EditorContent() {
           </Button>
         </div>
       </div>
+
+      {/* 云端载入确认弹窗 */}
+      <Dialog
+        open={showCloudDownloadConfirm}
+        title="确认载入云端内容"
+        description="载入云端内容将覆盖当前编辑器的本地内容，此操作不可撤销。确定要继续吗？"
+        confirmText="确认载入"
+        variant="danger"
+        onConfirm={handleCloudDownload}
+        onCancel={() => setShowCloudDownloadConfirm(false)}
+      />
 
       {/* 移动端编辑/预览切换按钮 */}
       <div className="flex lg:hidden mb-2 gap-2">
@@ -294,7 +369,7 @@ function EditorContent() {
         <Card className={`flex flex-col overflow-hidden h-[70vh] lg:h-auto ${mobileView !== 'editor' ? 'hidden lg:flex' : ''}`}>
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
-              <Edit3 className="h-4 w-4 text-slate-400" />
+              <Edit3 className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
               <CardTitle className="text-base">编辑区</CardTitle>
             </div>
             <CardDescription>实时语法校验 + Schema 结构校验（Ctrl+S 保存）</CardDescription>
@@ -311,17 +386,19 @@ function EditorContent() {
             <CardDescription>结构化树形预览 + 统计信息</CardDescription>
           </CardHeader>
           <CardContent className="flex-1 p-0 overflow-hidden">
-            <YamlPreview yamlContent={yamlContent} />
+            <YamlPreview yamlContent={yamlContent} validationResult={validationResult} />
           </CardContent>
         </Card>
       </div>
+      </>
+      )}
     </div>
   );
 }
 
 export default function EditorPage() {
   return (
-    <Suspense fallback={<div className="mx-auto max-w-7xl px-6 py-8">加载中...</div>}>
+    <Suspense fallback={<div className="mx-auto max-w-7xl px-6 py-8 text-zinc-500 dark:text-zinc-400">加载中...</div>}>
       <EditorContent />
     </Suspense>
   );

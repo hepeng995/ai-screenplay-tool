@@ -64,6 +64,10 @@ export function FileUploader() {
   const [isDragging, setIsDragging] = useState(false);
   const [reading, setReading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // 粘贴文本模式
+  const [inputMode, setInputMode] = useState<'upload' | 'paste'>('upload');
+  const [pasteText, setPasteText] = useState('');
+  const [pasteTitle, setPasteTitle] = useState('');
 
   const handleFile = useCallback(async (file: File) => {
     setError(null);
@@ -131,6 +135,25 @@ export function FileUploader() {
     }
   };
 
+  /** 粘贴文本模式提交 */
+  const handlePasteNext = () => {
+    const trimmed = pasteText.trim();
+    if (!trimmed) {
+      setError('请输入或粘贴小说文本内容');
+      return;
+    }
+    const title = pasteTitle.trim() || '粘贴文本';
+    try {
+      const project = createProject(title);
+      saveNovelText(project.id, trimmed);
+      router.push(`/convert?fileId=${project.id}`);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : '创建项目失败';
+      setError(message);
+      toast.error(message);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -138,13 +161,44 @@ export function FileUploader() {
         <CardDescription>支持 .txt / .md 纯文本，需包含 3 个以上章节，单文件 ≤ 10MB</CardDescription>
       </CardHeader>
       <CardContent>
+        {/* 模式切换 Tab */}
+        <div className="flex border-b border-zinc-200 dark:border-zinc-700 mb-4">
+          <button
+            type="button"
+            onClick={() => { setInputMode('upload'); setError(null); }}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors duration-200 ${
+              inputMode === 'upload'
+                ? 'border-teal-600 text-teal-600 dark:border-teal-400 dark:text-teal-400'
+                : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'
+            }`}
+          >
+            <Upload className="h-4 w-4 inline mr-1.5" />
+            上传文件
+          </button>
+          <button
+            type="button"
+            onClick={() => { setInputMode('paste'); setError(null); }}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors duration-200 ${
+              inputMode === 'paste'
+                ? 'border-teal-600 text-teal-600 dark:border-teal-400 dark:text-teal-400'
+                : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'
+            }`}
+          >
+            <FileText className="h-4 w-4 inline mr-1.5" />
+            粘贴文本
+          </button>
+        </div>
+
+        {/* 文件上传模式 */}
+        {inputMode === 'upload' && (
+        <>
         {/* 拖拽上传区 */}
         <label
           data-testid="upload-zone"
-          className={`flex flex-col items-center justify-center h-48 border-2 border-dashed rounded-lg cursor-pointer transition-all ${
+          className={`flex flex-col items-center justify-center h-48 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 ${
             isDragging
-              ? 'border-indigo-500 bg-indigo-50'
-              : 'border-slate-300 hover:border-indigo-400 hover:bg-indigo-50/30'
+              ? 'border-teal-500 bg-teal-50 dark:border-teal-400 dark:bg-teal-950/20'
+              : 'border-zinc-300 hover:border-teal-400 hover:bg-teal-50/30 dark:border-zinc-700 dark:hover:border-teal-600 dark:hover:bg-teal-950/10'
           }`}
           onDragOver={(e) => {
             e.preventDefault();
@@ -153,11 +207,11 @@ export function FileUploader() {
           onDragLeave={() => setIsDragging(false)}
           onDrop={handleDrop}
         >
-          <Upload className="h-10 w-10 text-slate-400 mb-2" />
-          <span className="text-sm font-medium text-slate-700">
+          <Upload className="h-10 w-10 text-zinc-400 dark:text-zinc-500 mb-2" />
+          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
             点击选择文件或拖拽到此处
           </span>
-          <span className="text-xs text-slate-400 mt-1">.txt / .md 格式，自动检测编码（UTF-8 / GBK / GB2312）</span>
+          <span className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">.txt / .md 格式，自动检测编码（UTF-8 / GBK / GB2312）</span>
           <input
             ref={fileInputRef}
             type="file"
@@ -172,7 +226,7 @@ export function FileUploader() {
 
         {/* 错误提示 */}
         {error && (
-          <div data-testid="error-message" className="mt-4 flex items-center gap-2 text-sm text-red-600">
+          <div data-testid="error-message" className="mt-4 flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span>{error}</span>
           </div>
@@ -180,26 +234,56 @@ export function FileUploader() {
 
         {/* 读取中 */}
         {reading && (
-          <div className="mt-4 text-center text-sm text-slate-500">
+          <div className="mt-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
             正在读取文件并检测编码...
           </div>
         )}
 
         {/* 文件信息 */}
         {fileInfo && (
-          <div data-testid="file-info" className="mt-4 rounded-lg bg-slate-50 p-4 space-y-2">
+          <div data-testid="file-info" className="mt-4 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 p-4 space-y-2">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-              <span data-testid="file-name" className="font-medium text-slate-900">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              <span data-testid="file-name" className="font-medium text-zinc-900 dark:text-zinc-100">
                 {fileInfo.name}
               </span>
             </div>
-            <div className="flex gap-4 text-sm text-slate-500">
+            <div className="flex gap-4 text-sm text-zinc-500 dark:text-zinc-400">
               <span>大小：{formatSize(fileInfo.size)}</span>
               <span>字符数：{fileInfo.charCount.toLocaleString()}</span>
               <span>编码：{fileInfo.encoding}</span>
             </div>
             <Button onClick={handleNext} className="w-full gap-2 mt-3" data-testid="next-btn" disabled={reading}>
+              下一步：章节切分
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+        </>
+        )}
+
+        {/* 粘贴文本模式 */}
+        {inputMode === 'paste' && (
+          <div className="space-y-3">
+            <input
+              type="text"
+              value={pasteTitle}
+              onChange={(e) => setPasteTitle(e.target.value)}
+              placeholder="输入项目名称（可选）"
+              className="w-full rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 transition-colors"
+            />
+            <textarea
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              placeholder={'在此粘贴小说文本内容...\n\n请确保文本包含 3 个以上章节标题（如"第一章"、"Chapter 1"等）'}
+              className="w-full h-48 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 resize-y transition-colors"
+            />
+            {pasteText.trim() && (
+              <p className="text-xs text-zinc-400 dark:text-zinc-500">
+                已输入 {pasteText.trim().length.toLocaleString()} 字符
+              </p>
+            )}
+            <Button onClick={handlePasteNext} className="w-full gap-2" disabled={!pasteText.trim()}>
               下一步：章节切分
               <ArrowRight className="h-4 w-4" />
             </Button>

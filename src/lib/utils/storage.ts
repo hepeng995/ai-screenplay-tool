@@ -167,27 +167,111 @@ export function exportProjects(ids: string[]): string {
  * 导入项目数据
  * @returns 导入的项目数量
  */
-export function importProjects(jsonStr: string): number {
+/** 导入策略 */
+export type ImportStrategy = 'skip' | 'overwrite' | 'clone';
+
+/** 导入结果统计 */
+export interface ImportResult {
+  imported: number;
+  skipped: number;
+  overwritten: number;
+}
+
+export function importProjects(jsonStr: string, strategy: ImportStrategy = 'skip'): ImportResult {
   const data = JSON.parse(jsonStr) as ExportData;
   if (!data.projects || !Array.isArray(data.projects)) {
     throw new Error('无效的导入文件格式');
   }
 
-  let count = 0;
+  const result: ImportResult = { imported: 0, skipped: 0, overwritten: 0 };
+
   for (const item of data.projects) {
     if (!item.project?.id || !item.project?.name) continue;
 
-    // 检查是否已存在同名项目，避免重复导入
     const existing = loadProject(item.project.id);
     if (existing) {
-      // 已存在则跳过，不覆盖
+      if (strategy === 'skip') {
+        result.skipped++;
+        continue;
+      }
+      if (strategy === 'overwrite') {
+        saveProject(item.project);
+        if (item.novelText) saveNovelText(item.project.id, item.novelText);
+        if (item.yamlContent) saveYamlContent(item.project.id, item.yamlContent);
+        result.overwritten++;
+        result.imported++;
+        continue;
+      }
+      // strategy === 'clone'：生成新 ID 导入
+      const newId = crypto.randomUUID();
+      const cloned: Project = {
+        ...item.project,
+        id: newId,
+        name: `${item.project.name}（导入）`,
+      };
+      saveProject(cloned);
+      if (item.novelText) saveNovelText(newId, item.novelText);
+      if (item.yamlContent) saveYamlContent(newId, item.yamlContent);
+      result.imported++;
       continue;
     }
 
     saveProject(item.project);
     if (item.novelText) saveNovelText(item.project.id, item.novelText);
     if (item.yamlContent) saveYamlContent(item.project.id, item.yamlContent);
-    count++;
+    result.imported++;
   }
-  return count;
+  return result;
+}
+
+/* ========== 项目复制 ========== */
+
+/** 复制项目（生成新 ID，复制所有关联数据） */
+export function cloneProject(id: string): Project | null {
+  const original = loadProject(id);
+  if (!original) return null;
+
+  const newId = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const cloned: Project = {
+    ...original,
+    id: newId,
+    name: `${original.name}（副本）`,
+    createdAt: now,
+    updatedAt: now,
+  };
+  saveProject(cloned);
+
+  // 复制小说原文
+  const novelText = loadNovelText(id);
+  if (novelText) saveNovelText(newId, novelText);
+
+  // 复制 YAML 剧本
+  const yamlContent = loadYamlContent(id);
+  if (yamlContent) saveYamlContent(newId, yamlContent);
+
+  return cloned;
+}
+
+/* ========== 存储空间管理 ========== */
+
+/** localStorage 总大小估算（字节） */
+export function getStorageUsage(): { used: number; total: number } {
+  if (typeof window === 'undefined') return { used: 0, total: 0 };
+  try {
+    let used = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key) {
+        used += key.length + (localStorage.getItem(key)?.length ?? 0);
+      }
+    }
+    // JS 字符串使用 UTF-16 编码，每个字符 2 字节
+    const usedBytes = used * 2;
+    // localStorage 常见上限约 5MB（部分浏览器 10MB）
+    const totalBytes = 5 * 1024 * 1024;
+    return { used: usedBytes, total: totalBytes };
+  } catch {
+    return { used: 0, total: 5 * 1024 * 1024 };
+  }
 }

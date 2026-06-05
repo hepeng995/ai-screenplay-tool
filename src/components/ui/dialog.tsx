@@ -65,11 +65,11 @@ export function Dialog({
 
   if (!open) return null;
 
-  // 确认按钮样式：danger 红色，default 主色 indigo
+  // 确认按钮样式：danger 红色，default 主色 teal
   const confirmClass =
     variant === 'danger'
       ? 'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500'
-      : 'bg-indigo-600 text-white hover:bg-indigo-700 focus-visible:ring-indigo-500';
+      : 'bg-teal-600 text-white hover:bg-teal-700 focus-visible:ring-teal-500 dark:bg-teal-500 dark:hover:bg-teal-400';
 
   return (
     <div
@@ -80,39 +80,41 @@ export function Dialog({
     >
       {/* 背景遮罩 */}
       <div
-        className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-zinc-900/50 backdrop-blur-sm"
         onClick={onCancel}
       />
 
       {/* 居中卡片 */}
       <div
         className={cn(
-          'relative z-10 w-full max-w-md mx-4 rounded-xl border border-slate-200 bg-white shadow-lg',
+          'relative z-10 w-full max-w-md mx-4 rounded-xl border border-zinc-200 bg-white shadow-lg',
+          'dark:border-zinc-700 dark:bg-zinc-900',
           'animate-in fade-in zoom-in-95 duration-150',
         )}
       >
         <div className="p-6">
           <h2
             id="dialog-title"
-            className="text-lg font-semibold text-slate-900"
+            className="text-lg font-semibold text-zinc-900 dark:text-zinc-100"
           >
             {title}
           </h2>
           {description && (
-            <p className="mt-2 text-sm text-slate-500 leading-relaxed">
+            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed">
               {description}
             </p>
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-xl">
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-zinc-100 bg-zinc-50/50 rounded-b-xl dark:border-zinc-800 dark:bg-zinc-800/50">
           <button
             type="button"
             onClick={onCancel}
             className={cn(
-              'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors',
-              'h-9 px-4 border border-slate-300 bg-white text-slate-700 hover:bg-slate-100',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2',
+              'inline-flex items-center justify-center rounded-lg text-sm font-medium transition-all duration-200',
+              'h-9 px-4 border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100',
+              'dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900',
             )}
           >
             {cancelText}
@@ -121,9 +123,9 @@ export function Dialog({
             type="button"
             onClick={onConfirm}
             className={cn(
-              'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors',
-              'h-9 px-4',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+              'inline-flex items-center justify-center rounded-lg text-sm font-medium transition-all duration-200',
+              'h-9 px-4 active:scale-[0.98]',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900',
               confirmClass,
             )}
           >

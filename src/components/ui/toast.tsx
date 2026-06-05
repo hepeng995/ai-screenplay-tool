@@ -7,9 +7,9 @@ import { TOAST_EVENT } from '@/lib/utils/toast';
 
 // 单个 Toast 样式映射
 const toastStyles: Record<ToastItem['type'], { bg: string; icon: typeof CheckCircle2; iconColor: string }> = {
-  success: { bg: 'bg-green-50 border-green-200', icon: CheckCircle2, iconColor: 'text-green-600' },
-  error: { bg: 'bg-red-50 border-red-200', icon: XCircle, iconColor: 'text-red-600' },
-  info: { bg: 'bg-blue-50 border-blue-200', icon: Info, iconColor: 'text-blue-600' },
+  success: { bg: 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/50 dark:border-emerald-800', icon: CheckCircle2, iconColor: 'text-emerald-600 dark:text-emerald-400' },
+  error: { bg: 'bg-red-50 border-red-200 dark:bg-red-950/50 dark:border-red-800', icon: XCircle, iconColor: 'text-red-600 dark:text-red-400' },
+  info: { bg: 'bg-sky-50 border-sky-200 dark:bg-sky-950/50 dark:border-sky-800', icon: Info, iconColor: 'text-sky-600 dark:text-sky-400' },
 };
 
 // 最多保留的 Toast 数量，防止连续触发时 DOM 堆积
@@ -28,13 +28,13 @@ function ToastEntry({ item, onDismiss }: { item: ToastItem; onDismiss: (id: numb
   return (
     <div
       data-testid={`toast-${item.type}`}
-      className={`flex items-start gap-2 rounded-lg border px-4 py-3 shadow-md min-w-[280px] max-w-[400px] ${style.bg}`}
+      className={`flex items-start gap-2 rounded-lg border px-4 py-3 shadow-md min-w-[280px] max-w-[400px] backdrop-blur-sm ${style.bg}`}
     >
       <Icon className={`h-5 w-5 flex-shrink-0 mt-0.5 ${style.iconColor}`} />
-      <p className="flex-1 text-sm text-slate-800">{item.message}</p>
+      <p className="flex-1 text-sm text-zinc-800 dark:text-zinc-200">{item.message}</p>
       <button
         onClick={() => onDismiss(item.id)}
-        className="text-slate-400 hover:text-slate-600 flex-shrink-0"
+        className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 flex-shrink-0"
       >
         <X className="h-4 w-4" />
       </button>

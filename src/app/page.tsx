@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { motion, useReducedMotion } from 'motion/react';
 import {
   Scissors,
   Sparkles,
@@ -16,12 +17,13 @@ import {
   Play,
   Download,
   Upload,
+  Copy,
+  Search,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { toast } from '@/lib/utils/toast';
-import { deleteProject, renameProject, listProjects, createProject, saveYamlContent, exportProjects, importProjects, type Project } from '@/lib/utils/storage';
+import { deleteProject, renameProject, listProjects, createProject, saveYamlContent, exportProjects, importProjects, getStorageUsage, cloneProject, type ImportStrategy, type Project } from '@/lib/utils/storage';
 
 interface RecentProject {
   id: string;
@@ -34,145 +36,71 @@ interface RecentProject {
 
 /** 项目状态标签样式映射 */
 const STATUS_LABELS: Record<Project['status'], { text: string; color: string }> = {
-  uploaded: { text: '已上传', color: 'bg-slate-100 text-slate-600' },
-  split: { text: '已切分', color: 'bg-blue-50 text-blue-600' },
-  converted: { text: '已转换', color: 'bg-green-50 text-green-600' },
-  edited: { text: '已编辑', color: 'bg-indigo-50 text-indigo-600' },
+  uploaded: { text: '已上传', color: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400' },
+  split: { text: '已切分', color: 'bg-sky-50 text-sky-600 dark:bg-sky-950/50 dark:text-sky-400' },
+  converted: { text: '已转换', color: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400' },
+  edited: { text: '已编辑', color: 'bg-teal-50 text-teal-600 dark:bg-teal-950/30 dark:text-teal-400' },
 };
 
-/** 示例 YAML 剧本（桃花源记改编版，严格对齐 ScriptSchema） */
-const DEMO_YAML = `script:
-  title: "桃花源记"
-  source: "桃花源记"
-  adapted_at: "2026-06-05"
-  adapter: "AI 剧本工坊 Demo"
-metadata:
-  genre: "历史"
-  characters:
-    - "渔夫"
-    - "村长"
-    - "村妇"
-    - "太守使者"
-  settings:
-    - "武陵溪边"
-    - "桃花林"
-    - "桃花源村"
-  summary: "东晋太元年间，武陵渔夫沿溪捕鱼，误入桃花源，发现一个与世隔绝的理想世界。"
-acts:
-  - act_number: 1
-    title: "误入桃源"
-    scenes:
-      - scene_number: 1
-        location: "武陵溪边"
-        time: "日"
-        characters_present:
-          - "渔夫"
-        description: "春日午后，武陵溪上薄雾笼罩，渔夫独自划船捕鱼。"
-        dialogues:
-          - character: "渔夫"
-            type: "独白"
-            content: "今日鱼获寥寥，不如顺流而下，看看尽头是何光景。"
-          - character: "渔夫"
-            type: "旁白"
-            content: "渔夫撑篙前行，溪水渐窄，两岸忽然满是桃花，落英缤纷。"
-          - character: "渔夫"
-            type: "独白"
-            content: "奇怪，此处桃花遍野，芳草鲜美，世外竟有此等美景！"
-      - scene_number: 2
-        location: "桃花源村口"
-        time: "日"
-        characters_present:
-          - "渔夫"
-          - "村长"
-        description: "穿过狭窄山洞后豁然开朗，土地平旷，屋舍俨然。"
-        dialogues:
-          - character: "渔夫"
-            type: "独白"
-            content: "这……这是何处？宛如仙境！"
-          - character: "村长"
-            type: "对白"
-            content: "这位客人从何而来？此地与世隔绝已久，从未有外人到访。"
-          - character: "渔夫"
-            type: "对白"
-            content: "老丈，在下是武陵渔夫，顺溪而来，误入贵地。请问这是什么地方？"
-          - character: "村长"
-            type: "对白"
-            content: "此地名为桃花源。我们先祖为避秦时战乱，举家迁入此地，从此再未外出。"
-          - character: "渔夫"
-            type: "独白"
-            content: "秦朝？如今已是晋朝，世间已过了数百年！"
-  - act_number: 2
-    title: "桃源做客"
-    scenes:
-      - scene_number: 3
-        location: "村长家中"
-        time: "夜"
-        characters_present:
-          - "渔夫"
-          - "村长"
-          - "村妇"
-        description: "村长设宴款待渔夫，村民纷纷前来询问外间消息。"
-        dialogues:
-          - character: "村妇"
-            type: "对白"
-            content: "客人，外间天下可还太平？百姓可还安居？"
-          - character: "渔夫"
-            type: "对白"
-            content: "唉……外间朝代更迭，战乱频仍，百姓苦不堪言。"
-          - character: "村长"
-            type: "独白"
-            content: "果然先祖有先见之明，避世于此，方得安宁。"
-          - character: "渔夫"
-            type: "对白"
-            content: "这里人人怡然自乐，真乃人间仙境。在下能否留下来？"
-          - character: "村长"
-            type: "对白"
-            content: "客人尽可住下。只是有一事相求——离去之后，切勿告诉外人此地所在。"
-          - character: "渔夫"
-            type: "对白"
-            content: "老丈放心，在下绝不相负。"
-`;
+/** 示例 YAML 数据：点击「体验示例」时按需加载 */
+const loadDemoYaml = () => import('@/lib/data/demo-yaml').then((m) => m.DEMO_YAML);
 
+/** Bento 特性展示数据 */
 const features = [
   {
     icon: Scissors,
     title: '智能章节切分',
-    desc: '自动识别小说章节边界，支持多种格式（第X章/Chapter N/卷X），用户预览确认。',
+    desc: '自动识别中英文章节边界，支持多种格式，用户预览确认后再转换。',
     href: '/convert',
+    span: 'md:col-span-2',
+    variant: 'default' as const,
   },
   {
     icon: Sparkles,
     title: 'AI 自动转换',
-    desc: '基于 mimo-v2.5 大模型，将小说文本一键转换为结构化 YAML 剧本格式。',
+    desc: '基于 mimo-v2.5 大模型，逐章转换为结构化 YAML 剧本。',
     href: '/convert',
+    span: 'md:col-span-1',
+    variant: 'accent' as const,
   },
   {
     icon: Edit3,
     title: '在线编辑校验',
-    desc: '实时 YAML 语法校验 + Zod Schema 结构校验，编辑即见即得。',
+    desc: '实时 YAML 语法校验 + Zod Schema 结构校验，编辑即见即得，多格式导出。',
     href: '/editor',
+    span: 'md:col-span-3',
+    variant: 'wide' as const,
   },
 ];
 
+/** 工作流步骤数据 */
+const workflowSteps = [
+  { icon: Upload, label: '上传小说' },
+  { icon: Scissors, label: '智能切分' },
+  { icon: Sparkles, label: 'AI 转换' },
+  { icon: Edit3, label: '编辑导出' },
+];
+
 export default function Home() {
+  const reduce = useReducedMotion();
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
-  // 删除确认弹窗状态：当前选中要删除的项目 ID
+  // 存储空间使用情况
+  const [storageUsed, setStorageUsed] = useState(0);
+  // 搜索与筛选
+  const [searchText, setSearchText] = useState('');
+  const [filterStatus, setFilterStatus] = useState<Project['status'] | 'all'>('all');
+  // 批量选择
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // 删除确认弹窗状态
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  // 重命名状态：当前正在重命名的项目 ID
+  // 重命名状态
   const [renameId, setRenameId] = useState<string | null>(null);
-  // 重命名输入值
   const [renameValue, setRenameValue] = useState('');
   // 导入文件 ref
   const importInputRef = useRef<HTMLInputElement>(null);
 
-  /**
-   * 从 localStorage 加载项目列表
-   * 复用 storage.ts 的 listProjects 抽象层，避免重复常量和手动 JSON.parse
-   * 注意：storage 的 Project 用 `name` 字段，UI 的 RecentProject 用 `title` 字段
-   */
   const loadProjects = useCallback(() => {
     const projects: Project[] = listProjects();
-    // 字段映射：name -> title
     const mapped: RecentProject[] = projects.map((p) => ({
       id: p.id,
       title: p.name,
@@ -181,15 +109,25 @@ export default function Home() {
       chapterCount: p.chapterCount,
       qiniuKey: p.qiniuKey,
     }));
-    // listProjects 已按 updatedAt 降序排列，无需再排
     setRecentProjects(mapped);
+    const { used } = getStorageUsage();
+    setStorageUsed(used);
   }, []);
+
+  // 搜索与筛选后的项目列表
+  const filteredProjects = useMemo(() => {
+    return recentProjects.filter((p) => {
+      if (filterStatus !== 'all' && p.status !== filterStatus) return false;
+      if (searchText && !p.title.toLowerCase().includes(searchText.toLowerCase())) return false;
+      return true;
+    });
+  }, [recentProjects, filterStatus, searchText]);
 
   useEffect(() => {
     loadProjects();
   }, [loadProjects]);
 
-  /** 开始重命名：进入编辑态，预填当前项目名 */
+  /** 开始重命名 */
   const handleRenameStart = (proj: RecentProject) => {
     setRenameId(proj.id);
     setRenameValue(proj.title);
@@ -243,93 +181,212 @@ export default function Home() {
   };
 
   /** 导入项目 */
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>, strategy: ImportStrategy = 'clone') => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
         const text = evt.target?.result as string;
-        const count = importProjects(text);
+        const result = importProjects(text, strategy);
         loadProjects();
-        toast.success(`成功导入 ${count} 个项目`);
+        const parts: string[] = [];
+        if (result.imported > 0) parts.push(`导入 ${result.imported} 个`);
+        if (result.overwritten > 0) parts.push(`覆盖 ${result.overwritten} 个`);
+        if (result.skipped > 0) parts.push(`跳过 ${result.skipped} 个`);
+        toast.success(parts.length > 0 ? parts.join('，') : '没有新项目需要导入');
       } catch (err) {
         toast.error(err instanceof Error ? err.message : '导入失败，文件格式无效');
       }
     };
     reader.readAsText(file);
-    // 清空 input 以支持重复导入同一文件
     e.target.value = '';
   };
 
+  // 动画配置
+  const animConfig = (delay = 0) =>
+    reduce
+      ? false
+      : {
+          initial: { opacity: 0, y: 20 },
+          animate: { opacity: 1, y: 0 },
+          transition: { duration: 0.5, delay, ease: [0.16, 1, 0.3, 1] as const },
+        };
+
   return (
-    <div className="mx-auto max-w-6xl px-6 py-12">
-      {/* Hero 区域 */}
-      <section className="text-center py-12">
-        <h1 className="text-5xl font-bold tracking-tight text-slate-900">
-          AI 辅助剧本创作
-        </h1>
-        <p className="mt-4 text-lg text-slate-600 max-w-2xl mx-auto">
-          将小说章节文本自动转换为结构化 YAML 剧本初稿，降低改编门槛，提升创作效率
-        </p>
-        <div className="mt-8 flex items-center justify-center gap-3">
-          <Link href="/convert">
-            <Button size="lg" className="gap-2">
-              开始创作 <ArrowRight className="h-4 w-4" />
-            </Button>
-          </Link>
-          <Button
-            size="lg"
-            variant="outline"
-            className="gap-2"
-            onClick={() => {
-              // 创建 Demo 项目，内置示例 YAML 剧本
-              const project = createProject('示例剧本 - 桃花源记');
-              saveYamlContent(project.id, DEMO_YAML);
-              window.location.href = `/editor?id=${project.id}`;
-            }}
+    <div className="mx-auto max-w-6xl px-6">
+      {/* ─── Hero 区域：左对齐排版驱动 ─── */}
+      <section className="pt-20 pb-16 md:pt-24 md:pb-20">
+        <div className="max-w-2xl">
+          <motion.h1
+            {...animConfig(0)}
+            className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 leading-[1.1]"
           >
-            <Play className="h-4 w-4" />
-            体验示例
-          </Button>
+            将小说变为剧本
+          </motion.h1>
+          <motion.p
+            {...animConfig(0.08)}
+            className="mt-5 text-lg text-zinc-500 dark:text-zinc-400 max-w-[520px] leading-relaxed"
+          >
+            上传小说文本，AI 自动切分章节并转换为结构化 YAML 剧本，降低改编门槛，提升创作效率
+          </motion.p>
+          <motion.div
+            {...animConfig(0.16)}
+            className="mt-8 flex items-center gap-3"
+          >
+            <Link href="/convert">
+              <Button size="lg" className="gap-2">
+                开始创作 <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+            <Button
+              size="lg"
+              variant="outline"
+              className="gap-2"
+              onClick={async () => {
+                const demoYaml = await loadDemoYaml();
+                const project = createProject('示例剧本 - 桃花源记');
+                saveYamlContent(project.id, demoYaml);
+                window.location.href = `/editor?id=${project.id}`;
+              }}
+            >
+              <Play className="h-4 w-4" />
+              体验示例
+            </Button>
+          </motion.div>
         </div>
       </section>
 
-      {/* 特性卡片 */}
-      <section className="grid grid-cols-1 gap-6 mt-8 md:grid-cols-3">
-        {features.map(({ icon: Icon, title, desc, href }) => (
-          <Link key={title} href={href}>
-            <Card className="hover:border-indigo-300 hover:shadow-sm transition-all cursor-pointer h-full">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-50">
-                    <Icon className="h-5 w-5 text-indigo-600" />
-                  </div>
-                  <CardTitle>{title}</CardTitle>
+      {/* ─── 工作流步骤 ─── */}
+      <motion.section
+        initial={reduce ? false : { opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, amount: 0.3 }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        className="pb-16"
+      >
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+          {workflowSteps.map((step, i) => {
+            const Icon = step.icon;
+            return (
+              <div
+                key={step.label}
+                className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900"
+              >
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-teal-50 dark:bg-teal-950/30">
+                  <Icon className="h-4 w-4 text-teal-600 dark:text-teal-400" />
                 </div>
-              </CardHeader>
-              <CardContent>
-                <CardDescription className="leading-relaxed">{desc}</CardDescription>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </section>
+                <div className="min-w-0">
+                  <span className="text-[10px] text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Step {i + 1}</span>
+                  <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">{step.label}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </motion.section>
 
-      {/* 最近项目 */}
-      <section className="mt-12">
+      {/* ─── Bento 特性展示 ─── */}
+      <motion.section
+        initial={reduce ? false : { opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, amount: 0.2 }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        className="pb-16"
+      >
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {features.map(({ icon: Icon, title, desc, href, span, variant }, idx) => (
+            <motion.div
+              key={title}
+              initial={reduce ? false : { opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{ duration: 0.4, delay: idx * 0.08, ease: [0.16, 1, 0.3, 1] as const }}
+              className={span}
+            >
+              <Link href={href} className="block h-full">
+                <div
+                  className={`
+                    group relative h-full rounded-xl border p-6 transition-all duration-200 cursor-pointer overflow-hidden
+                    ${variant === 'accent'
+                      ? 'border-teal-200 bg-gradient-to-br from-teal-50 to-white hover:border-teal-300 hover:shadow-md dark:border-teal-900 dark:from-teal-950/30 dark:to-zinc-900 dark:hover:border-teal-800'
+                      : variant === 'wide'
+                        ? 'border-zinc-200 bg-white hover:border-zinc-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700'
+                        : 'border-zinc-200 bg-white hover:border-teal-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-teal-800'
+                    }
+                  `}
+                >
+                  {/* 装饰性渐变圆 */}
+                  {variant === 'accent' && (
+                    <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-teal-100/50 blur-2xl dark:bg-teal-900/20" />
+                  )}
+                  {variant === 'wide' && (
+                    <div className="absolute -right-10 -bottom-10 h-32 w-32 rounded-full bg-teal-100/30 blur-3xl dark:bg-teal-900/10" />
+                  )}
+                  <div className="relative">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                        variant === 'accent'
+                          ? 'bg-teal-600 dark:bg-teal-500'
+                          : 'bg-zinc-100 dark:bg-zinc-800'
+                      }`}>
+                        <Icon className={`h-5 w-5 ${
+                          variant === 'accent'
+                            ? 'text-white'
+                            : 'text-teal-600 dark:text-teal-400'
+                        }`} />
+                      </div>
+                      <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{title}</h3>
+                    </div>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed">{desc}</p>
+                    <div className="mt-4 flex items-center gap-1 text-sm font-medium text-teal-600 dark:text-teal-400 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      了解更多 <ArrowRight className="h-3.5 w-3.5" />
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            </motion.div>
+          ))}
+        </div>
+      </motion.section>
+
+      {/* ─── 最近项目 ─── */}
+      <section className="pb-12">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <FolderOpen className="h-5 w-5 text-slate-400" />
-            <h2 className="text-xl font-semibold text-slate-900">最近项目</h2>
+            <FolderOpen className="h-5 w-5 text-zinc-400 dark:text-zinc-500" />
+            <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">最近项目</h2>
           </div>
           {recentProjects.length > 0 && (
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={handleExportAll} className="gap-1.5 text-slate-500 hover:text-slate-700">
+              {/* 搜索框 */}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400" />
+                <input
+                  type="text"
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  placeholder="搜索项目..."
+                  className="pl-8 pr-3 py-1.5 text-sm rounded-lg border border-zinc-200 bg-white outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 w-36 transition-colors dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-teal-500"
+                />
+              </div>
+              {/* 状态筛选 */}
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value as typeof filterStatus)}
+                className="text-sm rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 outline-none focus:border-teal-400 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:focus:border-teal-500"
+              >
+                <option value="all">全部状态</option>
+                <option value="uploaded">已上传</option>
+                <option value="split">已切分</option>
+                <option value="converted">已转换</option>
+                <option value="edited">已编辑</option>
+              </select>
+              <Button variant="ghost" size="sm" onClick={handleExportAll} className="gap-1.5 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
                 <Download className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">导出备份</span>
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => importInputRef.current?.click()} className="gap-1.5 text-slate-500 hover:text-slate-700">
+              <Button variant="ghost" size="sm" onClick={() => importInputRef.current?.click()} className="gap-1.5 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
                 <Upload className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">导入项目</span>
               </Button>
@@ -344,24 +401,93 @@ export default function Home() {
           )}
         </div>
         {recentProjects.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-slate-300 py-12 text-center">
-            <FileText className="mx-auto h-12 w-12 text-slate-300" />
-            <p className="mt-3 text-sm text-slate-500">
+          <div className="rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700 py-12 text-center">
+            <FileText className="mx-auto h-12 w-12 text-zinc-300 dark:text-zinc-600" />
+            <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">
               尚未创建项目，点击上方「开始创作」开始
+            </p>
+          </div>
+        ) : filteredProjects.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700 py-12 text-center">
+            <Search className="mx-auto h-12 w-12 text-zinc-300 dark:text-zinc-600" />
+            <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">
+              未找到匹配的项目
             </p>
           </div>
         ) : (
           <div className="space-y-2">
-            {recentProjects.map((proj) => (
+            {/* 批量操作工具条 */}
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-2 text-sm text-zinc-600 bg-teal-50 rounded-lg px-3 py-2 dark:bg-teal-950/20 dark:text-teal-300">
+                <span className="font-medium">已选 {selectedIds.size} 项</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50 gap-1 dark:text-red-400 dark:hover:bg-red-950/30"
+                  onClick={() => {
+                    for (const id of selectedIds) deleteProject(id);
+                    setSelectedIds(new Set());
+                    loadProjects();
+                    toast.success(`已删除 ${selectedIds.size} 个项目`);
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  批量删除
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-teal-600 hover:text-teal-700 hover:bg-teal-50 gap-1 dark:text-teal-400 dark:hover:bg-teal-950/20"
+                  onClick={() => {
+                    const ids = [...selectedIds];
+                    const json = exportProjects(ids);
+                    const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `ai-screenplay-backup-${new Date().toISOString().slice(0, 10)}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    toast.success(`已导出 ${ids.length} 个项目`);
+                  }}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  批量导出
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  onClick={() => setSelectedIds(new Set())}
+                >
+                  取消选择
+                </Button>
+              </div>
+            )}
+            {filteredProjects.map((proj) => (
               <div
                 key={proj.id}
-                className="group flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 hover:border-indigo-300 hover:shadow-sm transition-all"
+                className="group flex items-center justify-between rounded-xl border border-zinc-200 bg-white px-4 py-3 hover:border-teal-300 hover:shadow-sm transition-all duration-200 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-teal-800"
               >
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(proj.id)}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    setSelectedIds((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(proj.id)) next.delete(proj.id);
+                      else next.add(proj.id);
+                      return next;
+                    });
+                  }}
+                  className="h-4 w-4 rounded border-zinc-300 text-teal-600 mr-3 flex-shrink-0 cursor-pointer dark:border-zinc-600 dark:bg-zinc-800"
+                />
                 <Link
                   href={`/editor?id=${proj.id}`}
                   className="flex items-center gap-3 flex-1 min-w-0"
                 >
-                  <FileText className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                  <FileText className="h-4 w-4 text-zinc-400 dark:text-zinc-500 flex-shrink-0" />
                   {renameId === proj.id ? (
                     <input
                       type="text"
@@ -372,11 +498,11 @@ export default function Home() {
                         if (e.key === 'Escape') handleRenameCancel();
                       }}
                       autoFocus
-                      className="font-medium text-slate-900 bg-transparent border border-indigo-300 rounded px-2 py-0.5 outline-none focus:border-indigo-500"
+                      className="font-medium text-zinc-900 dark:text-zinc-100 bg-transparent border border-teal-300 dark:border-teal-600 rounded-lg px-2 py-0.5 outline-none focus:border-teal-500"
                       onClick={(e) => e.preventDefault()}
                     />
                   ) : (
-                    <span className="font-medium text-slate-900 truncate">
+                    <span className="font-medium text-zinc-900 dark:text-zinc-100 truncate">
                       {proj.title}
                     </span>
                   )}
@@ -392,19 +518,19 @@ export default function Home() {
                     );
                   })()}
                   {proj.chapterCount > 0 && (
-                    <span className="text-xs text-slate-400">{proj.chapterCount} 章</span>
+                    <span className="text-xs text-zinc-400 dark:text-zinc-500">{proj.chapterCount} 章</span>
                   )}
                   {proj.qiniuKey && (
-                    <span className="text-xs text-blue-400">☁</span>
+                    <span className="text-xs text-sky-400 dark:text-sky-500">☁</span>
                   )}
-                  <span className="text-xs text-slate-500">{proj.updatedAt}</span>
+                  <span className="text-xs text-zinc-400 dark:text-zinc-500">{proj.updatedAt}</span>
                   {/* 悬停显示的操作按钮 */}
                   {renameId === proj.id ? (
                     <>
                       <button
                         type="button"
                         onClick={() => handleRenameConfirm(proj.id)}
-                        className="p-1 rounded hover:bg-green-50 text-green-600"
+                        className="p-1 rounded-lg hover:bg-emerald-50 text-emerald-600 dark:hover:bg-emerald-950/30 dark:text-emerald-400"
                         aria-label="确认重命名"
                       >
                         <Check className="h-4 w-4" />
@@ -412,7 +538,7 @@ export default function Home() {
                       <button
                         type="button"
                         onClick={handleRenameCancel}
-                        className="p-1 rounded hover:bg-slate-100 text-slate-500"
+                        className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-500 dark:hover:bg-zinc-800 dark:text-zinc-400"
                         aria-label="取消重命名"
                       >
                         <X className="h-4 w-4" />
@@ -425,9 +551,25 @@ export default function Home() {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
+                          const cloned = cloneProject(proj.id);
+                          if (cloned) {
+                            loadProjects();
+                            toast.success('已复制项目');
+                          }
+                        }}
+                        className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-500 dark:hover:bg-zinc-800 dark:text-zinc-400"
+                        aria-label="复制项目"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
                           handleRenameStart(proj);
                         }}
-                        className="p-1 rounded hover:bg-indigo-50 text-indigo-600"
+                        className="p-1 rounded-lg hover:bg-teal-50 text-teal-600 dark:hover:bg-teal-950/20 dark:text-teal-400"
                         aria-label="重命名"
                       >
                         <Pencil className="h-4 w-4" />
@@ -439,7 +581,7 @@ export default function Home() {
                           e.stopPropagation();
                           setDeleteId(proj.id);
                         }}
-                        className="p-1 rounded hover:bg-red-50 text-red-600"
+                        className="p-1 rounded-lg hover:bg-red-50 text-red-600 dark:hover:bg-red-950/30 dark:text-red-400"
                         aria-label="删除"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -453,6 +595,11 @@ export default function Home() {
         )}
       </section>
 
+      {/* 存储空间指示 */}
+      <section className="pb-12">
+        <StorageBar used={storageUsed} total={5 * 1024 * 1024} />
+      </section>
+
       {/* 删除确认弹窗 */}
       <Dialog
         open={deleteId !== null}
@@ -463,6 +610,38 @@ export default function Home() {
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteId(null)}
       />
+    </div>
+  );
+}
+
+/** 存储空间指示条 */
+function StorageBar({ used, total }: { used: number; total: number }) {
+  const pct = Math.min(Math.round((used / total) * 100), 100);
+  const usedMB = (used / (1024 * 1024)).toFixed(2);
+  const totalMB = (total / (1024 * 1024)).toFixed(0);
+  const isWarning = pct > 80;
+
+  if (used === 0) return null;
+
+  return (
+    <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-xs text-zinc-500 dark:text-zinc-400">本地存储空间</span>
+        <span className={`text-xs ${isWarning ? 'text-red-600 dark:text-red-400 font-medium' : 'text-zinc-400 dark:text-zinc-500'}`}>
+          {usedMB} MB / {totalMB} MB（{pct}%）
+        </span>
+      </div>
+      <div className="h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-300 ${isWarning ? 'bg-red-500' : 'bg-teal-500 dark:bg-teal-400'}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      {isWarning && (
+        <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">
+          存储空间不足，建议导出备份后清理旧项目
+        </p>
+      )}
     </div>
   );
 }

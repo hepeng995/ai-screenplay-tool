@@ -3,12 +3,15 @@
 import { useMemo, useState } from 'react';
 import yaml from 'js-yaml';
 import { ChevronDown, ChevronRight, Users, Film, MessageSquare, Layers, MapPin, Clock, UserCheck } from 'lucide-react';
+import type { ValidationResult } from '@/lib/utils/yaml-validator';
 
 interface YamlPreviewProps {
   yamlContent: string;
+  /** 父组件传入的校验结果（可选，避免重复解析） */
+  validationResult?: ValidationResult | null;
 }
 
-export function YamlPreview({ yamlContent }: YamlPreviewProps) {
+export function YamlPreview({ yamlContent, validationResult }: YamlPreviewProps) {
   const [expandedActs, setExpandedActs] = useState<Set<number>>(new Set([0]));
   const [expandedScenes, setExpandedScenes] = useState<Set<string>>(new Set());
 
@@ -17,58 +20,24 @@ export function YamlPreview({ yamlContent }: YamlPreviewProps) {
       return { parsed: null, stats: null, allCharacters: [], error: 'YAML 内容为空' };
     }
 
+    // 优先使用父组件传入的已校验数据，避免重复解析
+    if (validationResult?.success && validationResult.data) {
+      const data = validationResult.data as unknown as Record<string, unknown>;
+      return computeStats(data);
+    }
+
+    // 校验失败或未传入时，自行解析（仅用于展示局部内容）
     try {
-      // 安全解析：不使用 as Script，使用运行时类型守卫
       const raw = yaml.load(yamlContent);
       if (!raw || typeof raw !== 'object') {
         return { parsed: null, stats: null, allCharacters: [], error: 'YAML 解析结果不是对象' };
       }
       const data = raw as Record<string, unknown>;
-
-      // 安全访问数组字段，运行时校验
-      const acts = Array.isArray(data.acts) ? data.acts : [];
-      const scenes = acts.flatMap((a) => {
-        const obj = a as Record<string, unknown>;
-        return Array.isArray(obj.scenes) ? obj.scenes : [];
-      });
-      const dialogues = scenes.flatMap((s) => {
-        const obj = s as Record<string, unknown>;
-        return Array.isArray(obj.dialogues) ? obj.dialogues : [];
-      });
-
-      // 从对话中提取角色
-      const dialogueCharacters = new Set(
-        dialogues
-          .map((d) => {
-            const obj = d as Record<string, unknown>;
-            return typeof obj.character === 'string' ? obj.character : '';
-          })
-          .filter(Boolean)
-      );
-
-      // 从 metadata.characters 也收集角色
-      const metadata = data.metadata as Record<string, unknown> | undefined;
-      const metaCharacters: string[] = Array.isArray(metadata?.characters)
-        ? (metadata!.characters as string[]).filter((c): c is string => typeof c === 'string')
-        : [];
-      // 合并去重
-      const allCharacters = [...new Set([...metaCharacters, ...dialogueCharacters])];
-
-      return {
-        parsed: data,
-        stats: {
-          acts: acts.length,
-          scenes: scenes.length,
-          dialogues: dialogues.length,
-          characters: allCharacters.length,
-        },
-        allCharacters,
-        error: null,
-      };
+      return computeStats(data);
     } catch (e) {
       return { parsed: null, stats: null, allCharacters: [], error: e instanceof Error ? e.message : 'YAML 解析失败' };
     }
-  }, [yamlContent]);
+  }, [yamlContent, validationResult]);
 
   if (error) {
     return (
@@ -106,7 +75,7 @@ export function YamlPreview({ yamlContent }: YamlPreviewProps) {
   return (
     <div className="h-full overflow-auto p-4 space-y-3">
       {/* 统计栏 */}
-      <div data-testid="preview-stats" className="grid grid-cols-4 gap-2 mb-4">
+      <div data-testid="preview-stats" className="grid grid-cols-2 gap-2 mb-4 sm:grid-cols-4">
         <StatCard icon={Layers} label="幕" value={stats.acts} testId="stats-acts" />
         <StatCard icon={Film} label="场景" value={stats.scenes} testId="stats-scenes" />
         <StatCard icon={MessageSquare} label="台词" value={stats.dialogues} testId="stats-dialogues" />
@@ -279,4 +248,44 @@ function StatCard({ icon: Icon, label, value, testId }: { icon: React.ElementTyp
       <div className="text-xs text-slate-500">{label}</div>
     </div>
   );
+}
+
+/** 从已解析的 YAML 对象中提取统计信息 */
+function computeStats(data: Record<string, unknown>) {
+  const acts = Array.isArray(data.acts) ? data.acts : [];
+  const scenes = acts.flatMap((a) => {
+    const obj = a as Record<string, unknown>;
+    return Array.isArray(obj.scenes) ? obj.scenes : [];
+  });
+  const dialogues = scenes.flatMap((s) => {
+    const obj = s as Record<string, unknown>;
+    return Array.isArray(obj.dialogues) ? obj.dialogues : [];
+  });
+
+  const dialogueCharacters = new Set(
+    dialogues
+      .map((d) => {
+        const obj = d as Record<string, unknown>;
+        return typeof obj.character === 'string' ? obj.character : '';
+      })
+      .filter(Boolean),
+  );
+
+  const metadata = data.metadata as Record<string, unknown> | undefined;
+  const metaCharacters: string[] = Array.isArray(metadata?.characters)
+    ? (metadata!.characters as string[]).filter((c): c is string => typeof c === 'string')
+    : [];
+  const allCharacters = [...new Set([...metaCharacters, ...dialogueCharacters])];
+
+  return {
+    parsed: data,
+    stats: {
+      acts: acts.length,
+      scenes: scenes.length,
+      dialogues: dialogues.length,
+      characters: allCharacters.length,
+    },
+    allCharacters,
+    error: null as string | null,
+  };
 }

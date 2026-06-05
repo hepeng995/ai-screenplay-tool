@@ -3,25 +3,67 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --accent: 14 184 166;       /* teal-500 */
+    --accent-hover: 13 148 136; /* teal-600 */
+    --accent-50: 240 253 250;   /* teal-50 */
+    --bg: 250 250 249;          /* zinc-50 */
+    --surface: 255 255 255;     /* white */
+    --text: 9 9 11;             /* zinc-950-ish */
+    --text-muted: 113 113 122;  /* zinc-500 */
+    --border: 228 228 231;      /* zinc-200 */
+  }
+
+  .dark {
+    --accent: 45 212 191;       /* teal-400 */
+    --accent-hover: 20 184 166; /* teal-500 */
+    --accent-50: 4 47 46;       /* teal-950 */
+    --bg: 9 9 11;               /* zinc-950 */
+    --surface: 24 24 27;        /* zinc-900 */
+    --text: 244 244 245;        /* zinc-100 */
+    --text-muted: 161 161 170;  /* zinc-400 */
+    --border: 39 39 42;         /* zinc-800 */
+  }
+
   html {
     scroll-behavior: smooth;
   }
+
   body {
-    @apply bg-slate-50 text-slate-900;
+    @apply bg-zinc-50 text-zinc-900 antialiased;
+  }
+
+  .dark body {
+    @apply bg-zinc-950 text-zinc-100;
   }
 }
 
 /* 自定义滚动条 */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
+
 ::-webkit-scrollbar-track {
-  @apply bg-slate-100;
+  @apply bg-zinc-100 dark:bg-zinc-900;
 }
+
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-300 rounded;
+  @apply bg-zinc-300 dark:bg-zinc-700 rounded;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-slate-400;
+  @apply bg-zinc-400 dark:bg-zinc-600;
+}
+
+/* Reduced motion 全局禁用 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

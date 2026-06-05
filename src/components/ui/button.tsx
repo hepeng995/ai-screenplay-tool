@@ -7,11 +7,16 @@ type Variant = 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost';
 type Size = 'default' | 'sm' | 'lg' | 'icon';
 
 const variantClasses: Record<Variant, string> = {
-  default: 'bg-indigo-600 text-white hover:bg-indigo-700',
-  destructive: 'bg-red-600 text-white hover:bg-red-700',
-  outline: 'border border-slate-300 bg-white hover:bg-slate-50 text-slate-700',
-  secondary: 'bg-slate-100 text-slate-900 hover:bg-slate-200',
-  ghost: 'hover:bg-slate-100 text-slate-700',
+  default:
+    'bg-teal-600 text-white hover:bg-teal-700 active:scale-[0.98] dark:bg-teal-500 dark:hover:bg-teal-400',
+  destructive:
+    'bg-red-600 text-white hover:bg-red-700 active:scale-[0.98]',
+  outline:
+    'border border-zinc-300 bg-white hover:bg-zinc-50 text-zinc-700 active:scale-[0.98] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800',
+  secondary:
+    'bg-zinc-100 text-zinc-900 hover:bg-zinc-200 active:scale-[0.98] dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700',
+  ghost:
+    'hover:bg-zinc-100 text-zinc-700 active:scale-[0.98] dark:hover:bg-zinc-800 dark:text-zinc-300',
 };
 
 const sizeClasses: Record<Size, string> = {
@@ -31,8 +36,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     <button
       ref={ref}
       className={cn(
-        'inline-flex items-center justify-center rounded-md font-medium transition-colors',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2',
+        'inline-flex items-center justify-center rounded-lg font-medium transition-all duration-200',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900',
         'disabled:pointer-events-none disabled:opacity-50',
         variantClasses[variant],
         sizeClasses[size],
