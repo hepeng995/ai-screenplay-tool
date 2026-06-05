@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import yaml from 'js-yaml';
-import { Edit3, Download, Save, Upload as UploadIcon, FileJson, FileText, CloudUpload, CloudDownload } from 'lucide-react';
+import { Edit3, Download, Save, Upload as UploadIcon, FileJson, FileText, CloudUpload, CloudDownload, Wand2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { YamlEditor } from '@/components/editor/YamlEditor';
@@ -53,6 +53,22 @@ function EditorContent() {
     setSaveStatus('saved');
     setTimeout(() => setSaveStatus('idle'), 2000);
   }, [projectId, yamlContent]);
+
+  /** 格式化 YAML：解析后重新序列化，统一缩进和换行 */
+  const handleFormatYaml = useCallback(() => {
+    if (!yamlContent.trim()) {
+      toast.info('内容为空，无需格式化');
+      return;
+    }
+    try {
+      const parsed = yaml.load(yamlContent);
+      const formatted = yaml.dump(parsed, { indent: 2, lineWidth: 120 });
+      setYamlContent(formatted);
+      toast.success('YAML 格式化完成');
+    } catch (e) {
+      toast.error('YAML 格式化失败：' + (e instanceof Error ? e.message : '语法错误'));
+    }
+  }, [yamlContent]);
 
   const handleExportYaml = useCallback(() => {
     const blob = new Blob([yamlContent], { type: 'text/yaml;charset=utf-8' });
@@ -165,6 +181,10 @@ function EditorContent() {
           <Button variant="outline" size="sm" onClick={handleManualSave} className="gap-1.5">
             <Save className="h-3.5 w-3.5" />
             保存
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleFormatYaml} className="gap-1.5" title="格式化 YAML">
+            <Wand2 className="h-3.5 w-3.5" />
+            格式化
           </Button>
           {/* 导出下拉 */}
           <div className="relative">
