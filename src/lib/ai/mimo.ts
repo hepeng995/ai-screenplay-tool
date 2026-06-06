@@ -32,16 +32,18 @@ const RETRY_BASE_DELAY = 1_000;
  * 从 AI 响应中提取 YAML 代码块
  */
 export function extractYaml(raw: string): string | null {
-  // 匹配 ```yaml ... ``` 代码块
-  const codeBlockMatch = raw.match(/```ya?ml\s*\n([\s\S]*?)\n```/i);
+  // 1. 优先匹配 ```yaml ... ``` 代码块（兼容无换行、有尾部空格等边界情况）
+  const codeBlockMatch = raw.match(/```(?:ya?ml)?\s*\n([\s\S]*?)\n?```/i);
   if (codeBlockMatch) {
     return codeBlockMatch[1].trim();
   }
 
-  // 兜底：尝试匹配裸 YAML（以 script: 开头）
+  // 2. 兜底：从 script: 开始截取，并去除尾部可能残留的代码围栏
   const yamlStart = raw.indexOf('script:');
   if (yamlStart >= 0) {
-    return raw.slice(yamlStart).trim();
+    let content = raw.slice(yamlStart).trim();
+    content = content.replace(/\n?```\s*$/i, '').trim();
+    return content;
   }
 
   return null;

@@ -82,10 +82,18 @@ async function readSSEStream(
  * 从 AI 响应文本中提取 YAML（客户端版本，不依赖服务端模块）
  */
 function extractYamlFromResponse(raw: string): string | null {
-  const match = raw.match(/```ya?ml\s*\n([\s\S]*?)\n```/i);
+  // 1. 优先匹配 ```yaml ... ``` 代码块（兼容无换行、有尾部空格等边界情况）
+  const match = raw.match(/```(?:ya?ml)?\s*\n([\s\S]*?)\n?```/i);
   if (match) return match[1].trim();
+
+  // 2. 兜底：从 script: 开始截取，并去除尾部可能残留的代码围栏
   const start = raw.indexOf('script:');
-  if (start >= 0) return raw.slice(start).trim();
+  if (start >= 0) {
+    let content = raw.slice(start).trim();
+    content = content.replace(/\n?```\s*$/i, '').trim();
+    return content;
+  }
+
   return null;
 }
 

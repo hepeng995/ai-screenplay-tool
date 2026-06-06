@@ -13,10 +13,18 @@ export interface ValidationResult {
  * @returns 校验结果，含 data 或 errors
  */
 export function validateYaml(yamlString: string): ValidationResult {
+  // 0. 预处理：防御性去除 markdown 代码块包裹
+  //    AI 输出或用户粘贴的内容可能仍包含 ```yaml ... ``` 围栏
+  let cleanInput = yamlString.trim();
+  const fenceMatch = cleanInput.match(/^```(?:ya?ml)?\s*\n([\s\S]*?)\n?```\s*$/i);
+  if (fenceMatch) {
+    cleanInput = fenceMatch[1].trim();
+  }
+
   // 1. 解析 YAML
   let parsed: unknown;
   try {
-    parsed = yaml.load(yamlString);
+    parsed = yaml.load(cleanInput);
   } catch (e) {
     return {
       success: false,
@@ -24,8 +32,8 @@ export function validateYaml(yamlString: string): ValidationResult {
     };
   }
 
-  // 2. 空值兜底
-  if (parsed == null || typeof parsed !== 'object') {
+  // 2. 空值/非对象兜底（数组也不符合 Schema 要求）
+  if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return {
       success: false,
       errors: [{ path: '', message: 'YAML 根节点必须是对象' }],
