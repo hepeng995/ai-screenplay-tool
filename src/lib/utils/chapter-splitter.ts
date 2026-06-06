@@ -49,8 +49,8 @@ export function splitChapters(text: string): SplitResult {
     matches.push({ index: m.index, title: m[0].trim() });
   }
 
-  // 切分点不足
-  if (matches.length < 3) {
+  // 未识别到任何章节标记时，尝试宽松匹配兜底
+  if (matches.length === 0) {
     // 兜底：尝试更宽松的匹配（独立行 + 冒号）
     const looseRegex = /^.{1,20}[：:]\s*$/gm;
     const looseMatches: { index: number; title: string }[] = [];
@@ -60,15 +60,15 @@ export function splitChapters(text: string): SplitResult {
       looseMatches.push({ index: lm.index, title: lm[0].trim() });
     }
 
-    if (looseMatches.length >= 3) {
+    if (looseMatches.length > 0) {
       return buildChapters(text, looseMatches);
     }
 
     return {
       success: false,
       chapters: [],
-      totalChapters: matches.length,
-      message: `仅识别到 ${matches.length} 个章节标记，需要至少 3 个。请确认文本包含明确的章节标题（如"第一章"、"Chapter 1"）。`,
+      totalChapters: 0,
+      message: '未识别到任何章节标记。请确认文本包含明确的章节标题（如"第一章"、"Chapter 1"）。',
     };
   }
 

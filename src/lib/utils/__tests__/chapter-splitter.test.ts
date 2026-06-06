@@ -43,12 +43,23 @@ describe('chapter-splitter', () => {
     expect(result.message).toContain('为空');
   });
 
-  // 不足3章
-  it('仅2章返回失败', () => {
+  // 少于3章也能正常切分
+  it('仅2章也能正常切分', () => {
     const text = `第一章 起\n内容1\n\n第二章 承\n内容2`;
     const result = splitChapters(text);
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
     expect(result.totalChapters).toBe(2);
+    expect(result.chapters[0].title).toContain('第一章');
+    expect(result.chapters[1].title).toContain('第二章');
+  });
+
+  // 仅1章也能正常切分
+  it('仅1章也能正常切分', () => {
+    const text = `第一章 起\n内容1`;
+    const result = splitChapters(text);
+    expect(result.success).toBe(true);
+    expect(result.totalChapters).toBe(1);
+    expect(result.chapters[0].title).toContain('第一章');
   });
 
   // 无章节标记
