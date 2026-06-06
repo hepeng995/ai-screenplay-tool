@@ -1,0 +1,20 @@
+{
+  "name": "AI 剧本工坊",
+  "short_name": "剧本工坊",
+  "description": "将小说文本自动转换为结构化 YAML 剧本的 AI 辅助创作工具",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fafaf9",
+  "theme_color": "#0d9488",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities"],
+  "lang": "zh-CN"
+}

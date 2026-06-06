@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { Upload, FileText, AlertCircle, CheckCircle2, ArrowRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -44,6 +45,8 @@ async function readFileWithAutoEncoding(file: File): Promise<{ text: string; enc
   const bytes = new Uint8Array(buffer);
 
   // 使用 jschardet 检测编码
+  // NOTE: jschardet 内部依赖 Buffer 特有方法（readUInt32BE 等），需传入 Buffer 而非 Uint8Array。
+  // Next.js webpack 已自动 polyfill Buffer，浏览器和 Node.js 环境均可用。
   const detected = jschardet.detect(Buffer.from(bytes));
 
   // 将检测结果映射为 TextDecoder 可用的编码名
@@ -68,6 +71,7 @@ export function FileUploader() {
   const [inputMode, setInputMode] = useState<'upload' | 'paste'>('upload');
   const [pasteText, setPasteText] = useState('');
   const [pasteTitle, setPasteTitle] = useState('');
+  const reduce = useReducedMotion();
 
   const handleFile = useCallback(async (file: File) => {
     setError(null);
@@ -161,31 +165,45 @@ export function FileUploader() {
         <CardDescription>支持 .txt / .md 纯文本，需包含 3 个以上章节，单文件 ≤ 10MB</CardDescription>
       </CardHeader>
       <CardContent>
-        {/* 模式切换 Tab */}
-        <div className="flex border-b border-zinc-200 dark:border-zinc-700 mb-4">
+        {/* 模式切换 Tab - 带 layoutId 下划线 */}
+        <div className="relative flex border-b border-zinc-200 dark:border-zinc-700 mb-4">
           <button
             type="button"
             onClick={() => { setInputMode('upload'); setError(null); }}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors duration-200 ${
+            className={`relative px-4 py-2 text-sm font-medium transition-colors duration-200 ${
               inputMode === 'upload'
-                ? 'border-teal-600 text-teal-600 dark:border-teal-400 dark:text-teal-400'
-                : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'
+                ? 'text-teal-600 dark:text-teal-400'
+                : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'
             }`}
           >
             <Upload className="h-4 w-4 inline mr-1.5" />
             上传文件
+            {inputMode === 'upload' && (
+              <motion.span
+                layoutId="upload-tab-indicator"
+                className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-600 dark:bg-teal-400 rounded-full"
+                transition={reduce ? { duration: 0 } : { type: 'spring', stiffness: 400, damping: 30 }}
+              />
+            )}
           </button>
           <button
             type="button"
             onClick={() => { setInputMode('paste'); setError(null); }}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors duration-200 ${
+            className={`relative px-4 py-2 text-sm font-medium transition-colors duration-200 ${
               inputMode === 'paste'
-                ? 'border-teal-600 text-teal-600 dark:border-teal-400 dark:text-teal-400'
-                : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'
+                ? 'text-teal-600 dark:text-teal-400'
+                : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'
             }`}
           >
             <FileText className="h-4 w-4 inline mr-1.5" />
             粘贴文本
+            {inputMode === 'paste' && (
+              <motion.span
+                layoutId="upload-tab-indicator"
+                className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-600 dark:bg-teal-400 rounded-full"
+                transition={reduce ? { duration: 0 } : { type: 'spring', stiffness: 400, damping: 30 }}
+              />
+            )}
           </button>
         </div>
 
@@ -195,9 +213,9 @@ export function FileUploader() {
         {/* 拖拽上传区 */}
         <label
           data-testid="upload-zone"
-          className={`flex flex-col items-center justify-center h-48 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 ${
+          className={`group flex flex-col items-center justify-center h-48 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-300 ${
             isDragging
-              ? 'border-teal-500 bg-teal-50 dark:border-teal-400 dark:bg-teal-950/20'
+              ? 'border-teal-500 bg-teal-50 scale-[1.01] dark:border-teal-400 dark:bg-teal-950/20'
               : 'border-zinc-300 hover:border-teal-400 hover:bg-teal-50/30 dark:border-zinc-700 dark:hover:border-teal-600 dark:hover:bg-teal-950/10'
           }`}
           onDragOver={(e) => {
@@ -207,7 +225,7 @@ export function FileUploader() {
           onDragLeave={() => setIsDragging(false)}
           onDrop={handleDrop}
         >
-          <Upload className="h-10 w-10 text-zinc-400 dark:text-zinc-500 mb-2" />
+          <Upload className={`h-10 w-10 text-zinc-400 dark:text-zinc-500 mb-2 transition-transform duration-300 ${isDragging ? 'scale-110 text-teal-500 dark:text-teal-400' : 'group-hover:-translate-y-0.5'}`} />
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
             点击选择文件或拖拽到此处
           </span>
@@ -225,12 +243,20 @@ export function FileUploader() {
         </label>
 
         {/* 错误提示 */}
-        {error && (
-          <div data-testid="error-message" className="mt-4 flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={reduce ? false : { opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
+              data-testid="error-message"
+              className="mt-4 flex items-center gap-2 text-sm text-red-600 dark:text-red-400"
+            >
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* 读取中 */}
         {reading && (
@@ -240,25 +266,39 @@ export function FileUploader() {
         )}
 
         {/* 文件信息 */}
-        {fileInfo && (
-          <div data-testid="file-info" className="mt-4 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 p-4 space-y-2">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-              <span data-testid="file-name" className="font-medium text-zinc-900 dark:text-zinc-100">
-                {fileInfo.name}
-              </span>
-            </div>
-            <div className="flex gap-4 text-sm text-zinc-500 dark:text-zinc-400">
-              <span>大小：{formatSize(fileInfo.size)}</span>
-              <span>字符数：{fileInfo.charCount.toLocaleString()}</span>
-              <span>编码：{fileInfo.encoding}</span>
-            </div>
-            <Button onClick={handleNext} className="w-full gap-2 mt-3" data-testid="next-btn" disabled={reading}>
-              下一步：章节切分
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
+        <AnimatePresence>
+          {fileInfo && (
+            <motion.div
+              initial={reduce ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={reduce ? { opacity: 0 } : { opacity: 0, y: -8 }}
+              data-testid="file-info"
+              className="mt-4 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 p-4 space-y-2"
+            >
+              <div className="flex items-center gap-2">
+                <motion.div
+                  initial={reduce ? false : { scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 20, delay: 0.1 }}
+                >
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                </motion.div>
+                <span data-testid="file-name" className="font-medium text-zinc-900 dark:text-zinc-100">
+                  {fileInfo.name}
+                </span>
+              </div>
+              <div className="flex gap-4 text-sm text-zinc-500 dark:text-zinc-400">
+                <span>大小：{formatSize(fileInfo.size)}</span>
+                <span>字符数：{fileInfo.charCount.toLocaleString()}</span>
+                <span>编码：{fileInfo.encoding}</span>
+              </div>
+              <Button onClick={handleNext} className="w-full gap-2 mt-3" data-testid="next-btn" disabled={reading}>
+                下一步：章节切分
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
         </>
         )}
 
