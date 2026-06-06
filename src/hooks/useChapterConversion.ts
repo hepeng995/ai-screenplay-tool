@@ -193,7 +193,18 @@ export function useChapterConversion(fileId: string | null): UseChapterConversio
         }),
         signal,
       });
-      const data = await res.json();
+
+      // 防护：Vercel 504 等非 JSON 响应
+      let data: { success?: boolean; yaml?: string; error?: string };
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(
+          res.status === 504
+            ? 'AI 转换超时（服务端响应超时），请稍后重试或尝试缩短章节内容'
+            : `服务器返回异常状态码 ${res.status}，请稍后重试`,
+        );
+      }
 
       if (data.success && data.yaml) {
         localStorage.setItem(partialKey(chapter.id), data.yaml);
