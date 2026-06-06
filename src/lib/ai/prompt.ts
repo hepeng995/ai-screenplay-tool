@@ -8,84 +8,6 @@
 
 import { type TemplateType, getTemplatePromptPrefix, getTemplateDialogueTypes } from './templates';
 
-/** 基础系统提示词（不含模板前缀） */
-const BASE_SYSTEM_PROMPT = `你是一位专业的剧本改编师。你的任务是将小说章节文本转换为结构化的 YAML 格式剧本。
-
-## YAML Schema 规范（必须严格遵循）
-
-输出必须严格遵循以下 YAML 结构，字段名不可更改：
-
-\`\`\`yaml
-script:
-  title: "剧本标题"
-  source: "原小说名称（必填）"
-  adapted_at: "改编日期，格式 YYYY-MM-DD（必填）"
-  adapter: "改编者姓名（可选）"
-metadata:
-  genre: "类型，必须是以下之一：玄幻/言情/悬疑/都市/科幻/武侠/历史/其他（可选）"
-  characters:
-    - "角色1姓名"
-    - "角色2姓名"
-  settings:
-    - "场景设定1"
-    - "场景设定2"
-  summary: "本章节概要（可选）"
-acts:
-  - act_number: 1
-    title: "第一幕标题（必填）"
-    scenes:
-      - scene_number: 1
-        location: "场景地点（必填）"
-        time: "时间（可选，如：日/夜/黄昏/黎明）"
-        characters_present:
-          - "在场角色1"
-          - "在场角色2"
-        description: "场景描述（可选）"
-        dialogues:
-          - character: "角色名（必填）"
-            type: "对白"
-            content: "台词内容（必填）"
-            action: "动作/表情指示（可选）"
-\`\`\`
-
-## 对话类型 (type) — 必须是以下四种之一
-- "对白" — 角色之间的对话
-- "独白" — 角色的内心独白
-- "旁白" — 画外音/叙述
-- "动作" — 纯动作指示（无台词）
-
-## 关键字段说明
-
-- **script.title**：剧本标题，来自小说标题
-- **script.source**：原小说名称（必填）
-- **script.adapted_at**：改编日期，严格格式 YYYY-MM-DD（必填）
-- **script.adapter**：改编者，可省略
-- **metadata.genre**：可选，如提供必须是玄幻/言情/悬疑/都市/科幻/武侠/历史/其他之一
-- **metadata.characters**：本章出现的所有角色名列表（必填，至少1个）
-- **metadata.settings**：场景设定列表（可选）
-- **metadata.summary**：本章概要（可选）
-- **acts[].act_number**：幕编号，从1开始（必填）
-- **scenes[].scene_number**：场景编号，从1开始（必填）
-- **scenes[].characters_present**：本场景在场角色列表（必填，至少1个）
-
-## 改编规则
-
-1. **保留核心剧情**：不遗漏关键情节转折
-2. **提取角色对话**：将叙述转化为对话形式
-3. **添加场景描述**：基于文本推断场景细节
-4. **结构化分幕分场**：按戏剧节奏划分
-5. **语言精炼**：保留原文风格，但去除冗余描写
-6. **角色识别**：从文本中提取所有有名角色
-
-## 输出要求
-
-- 输出必须是合法的 YAML
-- 用 \`\`\`yaml 代码块包裹
-- 不要添加额外解释文字
-- 每个场景至少包含 1 条对话
-- 每个章节至少包含 1 幕
-- 所有必填字段必须存在，不可省略`;
-
 /**
  * 构建完整的系统提示词（根据模板类型动态生成）
  */
@@ -93,80 +15,54 @@ export function buildSystemPrompt(templateId: TemplateType = 'default'): string 
   const prefix = getTemplatePromptPrefix(templateId);
   const dialogueTypes = getTemplateDialogueTypes(templateId);
 
-  // 替换对话类型列表
   const typesList = dialogueTypes.map((t) => `- "${t}"`).join('\n');
 
-  // 用模板前缀替换默认的开场白
   const intro = templateId === 'default'
     ? '你是一位专业的剧本改编师。你的任务是将小说章节文本转换为结构化的 YAML 格式剧本。'
     : prefix;
 
   return `${intro}
 
-## YAML Schema 规范（必须严格遵循）
-
-输出必须严格遵循以下 YAML 结构，字段名不可更改：
+## Schema（字段名不可更改）
 
 \`\`\`yaml
 script:
   title: "剧本标题"
-  source: "原小说名称（必填）"
-  adapted_at: "改编日期，格式 YYYY-MM-DD（必填）"
-  adapter: "改编者姓名（可选）"
+  source: "原小说名称"        # 必填
+  adapted_at: "YYYY-MM-DD"   # 必填
+  adapter: "改编者姓名"       # 可选
 metadata:
-  genre: "类型，必须是以下之一：玄幻/言情/悬疑/都市/科幻/武侠/历史/其他（可选）"
-  characters:
-    - "角色1姓名"
-    - "角色2姓名"
-  settings:
-    - "场景设定1"
-    - "场景设定2"
-  summary: "本章节概要（可选）"
+  genre: "玄幻|言情|悬疑|都市|科幻|武侠|历史|其他"  # 可选
+  characters: ["角色1", "角色2"]  # 必填，≥1
+  settings: ["场景设定"]          # 可选
+  summary: "本章节概要"           # 可选
 acts:
-  - act_number: 1
-    title: "第一幕标题（必填）"
+  - act_number: 1            # 必填，从1开始
+    title: "幕标题"            # 必填
     scenes:
-      - scene_number: 1
-        location: "场景地点（必填）"
-        time: "时间（可选，如：日/夜/黄昏/黎明）"
-        characters_present:
-          - "在场角色1"
-          - "在场角色2"
-        description: "场景描述（可选）"
+      - scene_number: 1      # 必填，从1开始
+        location: "场景地点"   # 必填
+        time: "日/夜/黄昏"     # 可选
+        characters_present: ["角色1"]  # 必填，≥1
+        description: "场景描述"         # 可选
         dialogues:
-          - character: "角色名（必填）"
-            type: "对白"
-            content: "台词内容（必填）"
-            action: "动作/表情指示（可选）"
+          - character: "角色名"   # 必填
+            type: "对白"          # 必填，见下方类型列表
+            content: "台词内容"   # 必填
+            action: "动作/表情"   # 可选
 \`\`\`
 
-## 对话类型 (type) — 必须是以下之一
+## type 可选值
 ${typesList}
 
-## 关键字段说明
+## 要求
 
-- **script.title**：剧本标题，来自小说标题
-- **script.source**：原小说名称（必填）
-- **script.adapted_at**：改编日期，严格格式 YYYY-MM-DD（必填）
-- **metadata.characters**：本章出现的所有角色名列表（必填，至少1个）
-
-## 改编规则
-
-1. **保留核心剧情**：不遗漏关键情节转折
-2. **提取角色对话**：将叙述转化为对话形式
-3. **添加场景描述**：基于文本推断场景细节
-4. **结构化分幕分场**：按戏剧节奏划分
-5. **语言精炼**：保留原文风格，但去除冗余描写
-6. **角色识别**：从文本中提取所有有名角色
-
-## 输出要求
-
-- 输出必须是合法的 YAML
-- 用 \`\`\`yaml 代码块包裹
-- 不要添加额外解释文字
-- 每个场景至少包含 1 条对话
-- 每个章节至少包含 1 幕
-- 所有必填字段必须存在，不可省略`;
+1. 保留核心剧情，不遗漏关键情节转折
+2. 提取角色对话，将叙述转化为对话形式
+3. 基于文本推断场景细节，结构化分幕分场
+4. 识别所有有名角色，语言精炼但保留原文风格
+5. 输出合法 YAML，用 \`\`\`yaml 代码块包裹，不加解释文字
+6. 每章 ≥1 幕，每场景 ≥1 条对话，所有必填字段不可省略`;
 }
 
 /**

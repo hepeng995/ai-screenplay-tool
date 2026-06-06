@@ -8,16 +8,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock mimo 模块，避免调用真实 AI API
 vi.mock('@/lib/ai/mimo', () => ({
   transformChapterToYaml: vi.fn(),
-  withConcurrencyLimit: vi.fn(
-    <T>(fn: () => Promise<T>): Promise<T> => fn(),
-  ),
 }));
 
 import { POST } from '../convert/route';
-import { transformChapterToYaml, withConcurrencyLimit } from '@/lib/ai/mimo';
+import { transformChapterToYaml } from '@/lib/ai/mimo';
 
 const mockedTransform = vi.mocked(transformChapterToYaml);
-const mockedConcurrency = vi.mocked(withConcurrencyLimit);
 
 /**
  * 构造 POST Request 对象
@@ -32,10 +28,6 @@ function makeRequest(body: unknown): Request {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // 默认让 withConcurrencyLimit 直接执行传入的函数
-  mockedConcurrency.mockImplementation(
-    <T>(fn: () => Promise<T>): Promise<T> => fn(),
-  );
 });
 
 describe('POST /api/convert', () => {

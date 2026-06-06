@@ -1,9 +1,9 @@
 /**
  * mimo AI 调用封装
- * T2.3: Edge Runtime 兼容的 AI 转换
+ * T2.3: Node.js Serverless Runtime 兼容的 AI 转换
  */
 
-import { SYSTEM_PROMPT, buildUserPrompt, buildSystemPrompt } from './prompt';
+import { buildUserPrompt, buildSystemPrompt } from './prompt';
 import type { TemplateType } from './templates';
 
 export interface TransformResult {
@@ -14,14 +14,17 @@ export interface TransformResult {
   elapsed?: number;
 }
 
+/** 流式转换过程中的进度回调 */
+export type StreamProgressCallback = (chunk: string, accumulated: string) => void;
+
 const MIMO_API_URL = process.env.MIMO_API_URL ?? 'https://token-plan-cn.xiaomimimo.com/v1';
 const MIMO_API_KEY = process.env.MIMO_API_KEY ?? '';
 const MIMO_MODEL = process.env.MIMO_MODEL ?? 'mimo-v2.5';
 
-/** 单请求超时 30s */
-const REQUEST_TIMEOUT_MS = 30_000;
-/** 最大重试次数 */
-const MAX_RETRIES = 2;
+/** 单请求超时 45s（在 Node.js Serverless 60s maxDuration 内留出 buffer） */
+const REQUEST_TIMEOUT_MS = 45_000;
+/** 服务端不重试（重试由客户端处理，避免单次请求超出 maxDuration） */
+const MAX_RETRIES = 0;
 /** 重试退避基数 */
 const RETRY_BASE_DELAY = 1_000;
 
@@ -45,9 +48,14 @@ export function extractYaml(raw: string): string | null {
 }
 
 /**
- * 调用 mimo API（单次请求）
+ * 调用 mimo API（单次请求，非流式）
  */
-async function callMimoApi(chapterTitle: string, chapterText: string, templateId: TemplateType = 'default', instruction?: string): Promise<Response> {
+async function callMimoApi(
+  chapterTitle: string,
+  chapterText: string,
+  templateId: TemplateType = 'default',
+  instruction?: string,
+): Promise<Response> {
   const userPrompt = buildUserPrompt(chapterTitle, chapterText, instruction);
   const systemPrompt = buildSystemPrompt(templateId);
 
@@ -64,15 +72,14 @@ async function callMimoApi(chapterTitle: string, chapterText: string, templateId
         { role: 'user', content: userPrompt },
       ],
       max_tokens: 8192,
-      temperature: 0.7,
+      temperature: 0.4,
     }),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
 }
 
 /**
- * 将小说章节文本转换为 YAML 剧本
- * 含重试逻辑（指数退避：1s, 2s）
+ * 将小说章节文本转换为 YAML 剧本（非流式，向后兼容）
  */
 export async function transformChapterToYaml(
   chapterTitle: string,
@@ -148,26 +155,124 @@ export async function transformChapterToYaml(
   };
 }
 
-/** 并发控制：限制最多 3 个并发 AI 请求 */
-const MAX_CONCURRENT = 3;
-let runningCount = 0;
-const waitQueue: (() => void)[] = [];
+/**
+ * 流式调用 mimo API，返回 ReadableStream（SSE 格式，直接转发给客户端）
+ * 用于 /api/convert?stream=true 模式
+ */
+export async function callMimoApiStreaming(
+  chapterTitle: string,
+  chapterText: string,
+  templateId: TemplateType = 'default',
+  instruction?: string,
+): Promise<ReadableStream<Uint8Array>> {
+  const userPrompt = buildUserPrompt(chapterTitle, chapterText, instruction);
+  const systemPrompt = buildSystemPrompt(templateId);
 
-export async function withConcurrencyLimit<T>(fn: () => Promise<T>): Promise<T> {
-  // 排队等待
-  if (runningCount >= MAX_CONCURRENT) {
-    await new Promise<void>((resolve) => waitQueue.push(resolve));
+  const response = await fetch(`${MIMO_API_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${MIMO_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: MIMO_MODEL,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      max_tokens: 8192,
+      temperature: 0.4,
+      stream: true,
+    }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(`API 返回 ${response.status}: ${response.statusText}${errorText ? ` - ${errorText}` : ''}`);
   }
 
-  runningCount++;
+  if (!response.body) {
+    throw new Error('API 响应体为空，流式传输不可用');
+  }
+
+  // 直接转发上游 SSE 流，客户端自行解析
+  return response.body;
+}
+
+/**
+ * 客户端解析 SSE 流的工具函数
+ * 从流式响应中累积完整文本，提取最终 YAML
+ */
+export async function readStreamToEnd(
+  body: ReadableStream<Uint8Array>,
+  onChunk?: StreamProgressCallback,
+): Promise<TransformResult> {
+  const startTime = Date.now();
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let accumulated = '';
+  let sseBuffer = ''; // SSE 可能跨 chunk 分割
+
   try {
-    return await fn();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      sseBuffer += decoder.decode(value, { stream: true });
+
+      // 按行解析 SSE 数据
+      const lines = sseBuffer.split('\n');
+      // 最后一行可能不完整，留到下次处理
+      sseBuffer = lines.pop() ?? '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data: ')) continue;
+
+        const data = trimmed.slice(6);
+        if (data === '[DONE]') continue;
+
+        try {
+          const json = JSON.parse(data);
+          const content = json?.choices?.[0]?.delta?.content ?? '';
+          if (content) {
+            accumulated += content;
+            onChunk?.(content, accumulated);
+          }
+        } catch {
+          // 非法 JSON 行（如心跳），忽略
+        }
+      }
+    }
   } finally {
-    runningCount--;
-    // 唤醒下一个等待者
-    const next = waitQueue.shift();
-    if (next) next();
+    reader.releaseLock();
   }
+
+  if (!accumulated) {
+    return {
+      success: false,
+      error: 'AI 返回空内容',
+      elapsed: Date.now() - startTime,
+    };
+  }
+
+  const yaml = extractYaml(accumulated);
+  if (!yaml) {
+    return {
+      success: false,
+      error: '无法从 AI 响应中提取 YAML',
+      raw: accumulated,
+      elapsed: Date.now() - startTime,
+    };
+  }
+
+  return {
+    success: true,
+    yaml,
+    raw: accumulated,
+    elapsed: Date.now() - startTime,
+  };
 }
 
 /** 延迟工具函数 */

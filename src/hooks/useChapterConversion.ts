@@ -5,8 +5,14 @@ import { splitChapters, type Chapter } from '@/lib/utils/chapter-splitter';
 import type { TemplateType } from '@/lib/ai/templates';
 import { toast } from '@/lib/utils/toast';
 
-/** 并发批次大小（与服务端 withConcurrencyLimit MAX_CONCURRENT=3 匹配） */
-const BATCH_SIZE = 3;
+/** 最大并发请求数（与服务端 AI API 并发能力匹配） */
+const MAX_CONCURRENT_REQUESTS = 5;
+/** 客户端请求超时（低于服务端 maxDuration=60s，留出 buffer） */
+const CLIENT_TIMEOUT_MS = 55_000;
+/** 客户端最大重试次数 */
+const MAX_CLIENT_RETRIES = 2;
+/** 重试退避基数（ms） */
+const CLIENT_RETRY_DELAY_MS = 1_000;
 /** 中间结果的 localStorage key 前缀（按 chapter.id 索引，避免删章错位） */
 const PARTIAL_PREFIX = 'partial-yaml-';
 /** 转换状态持久化 key 前缀（跨刷新恢复跳过/删除/改名） */
@@ -23,6 +29,64 @@ interface PersistedState {
   skippedIds: string[];
   /** 用户修改过的章节标题（id → 新标题） */
   titles: Record<string, string>;
+}
+
+/**
+ * 从 SSE 流中读取完整 AI 响应文本
+ * 解析 OpenAI 兼容的 SSE 格式：`data: {"choices":[{"delta":{"content":"..."}}]}`
+ */
+async function readSSEStream(
+  response: Response,
+  signal: AbortSignal,
+): Promise<string> {
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let accumulated = '';
+  let sseBuffer = '';
+
+  try {
+    while (true) {
+      if (signal.aborted) break;
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      sseBuffer += decoder.decode(value, { stream: true });
+
+      // 按行分割，最后一行可能不完整
+      const lines = sseBuffer.split('\n');
+      sseBuffer = lines.pop() ?? '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data: ')) continue;
+        const data = trimmed.slice(6);
+        if (data === '[DONE]') continue;
+
+        try {
+          const json = JSON.parse(data);
+          const content = json?.choices?.[0]?.delta?.content ?? '';
+          if (content) accumulated += content;
+        } catch {
+          // 非法 JSON 行（如心跳），忽略
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return accumulated;
+}
+
+/**
+ * 从 AI 响应文本中提取 YAML（客户端版本，不依赖服务端模块）
+ */
+function extractYamlFromResponse(raw: string): string | null {
+  const match = raw.match(/```ya?ml\s*\n([\s\S]*?)\n```/i);
+  if (match) return match[1].trim();
+  const start = raw.indexOf('script:');
+  if (start >= 0) return raw.slice(start).trim();
+  return null;
 }
 
 interface UseChapterConversionReturn {
@@ -169,7 +233,7 @@ export function useChapterConversion(fileId: string | null): UseChapterConversio
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [converting]);
 
-  /** 转换单个章节 */
+  /** 转换单个章节（流式 SSE + 客户端超时 + 自动重试） */
   const convertSingleChapter = useCallback(async (
     chapter: Chapter,
     globalIdx: number,
@@ -181,33 +245,57 @@ export function useChapterConversion(fileId: string | null): UseChapterConversio
       return next;
     });
 
-    try {
-      const res = await fetch('/api/convert', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chapterTitle: chapter.title,
-          chapterText: chapter.content,
-          templateId,
-          instruction,
-        }),
-        signal,
-      });
+    let lastErrorMsg = '';
 
-      // 防护：Vercel 504 等非 JSON 响应
-      let data: { success?: boolean; yaml?: string; error?: string };
+    for (let attempt = 0; attempt <= MAX_CLIENT_RETRIES; attempt++) {
+      if (signal.aborted) return;
+
       try {
-        data = await res.json();
-      } catch {
-        throw new Error(
-          res.status === 504
-            ? 'AI 转换超时（服务端响应超时），请稍后重试或尝试缩短章节内容'
-            : `服务器返回异常状态码 ${res.status}，请稍后重试`,
-        );
-      }
+        // 客户端超时 + 用户取消信号合并
+        const clientSignal = typeof AbortSignal.any === 'function'
+          ? AbortSignal.any([AbortSignal.timeout(CLIENT_TIMEOUT_MS), signal])
+          : signal;
 
-      if (data.success && data.yaml) {
-        localStorage.setItem(partialKey(chapter.id), data.yaml);
+        // 使用流式模式
+        const res = await fetch('/api/convert?stream=true', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chapterTitle: chapter.title,
+            chapterText: chapter.content,
+            templateId,
+            instruction,
+          }),
+          signal: clientSignal,
+        });
+
+        // 服务端在流式启动失败时返回 JSON 错误（非 SSE）
+        const contentType = res.headers.get('content-type') ?? '';
+        if (!res.ok || !contentType.includes('text/event-stream')) {
+          let errorMsg: string;
+          try {
+            const errData = await res.json();
+            errorMsg = errData.error ?? `服务器返回 ${res.status}`;
+          } catch {
+            errorMsg = res.status === 504
+              ? 'AI 转换超时（服务端响应超时），请稍后重试或尝试缩短章节内容'
+              : `服务器返回异常状态码 ${res.status}，请稍后重试`;
+          }
+          throw new Error(errorMsg);
+        }
+
+        // 读取 SSE 流，累积完整文本
+        const fullText = await readSSEStream(res, signal);
+
+        if (signal.aborted) return;
+
+        // 从累积文本中提取 YAML
+        const yaml = extractYamlFromResponse(fullText);
+        if (!yaml) {
+          throw new Error('无法从 AI 响应中提取 YAML');
+        }
+
+        localStorage.setItem(partialKey(chapter.id), yaml);
         setChapterStatuses((prev) => {
           const next = [...prev];
           next[globalIdx] = 'success';
@@ -218,27 +306,41 @@ export function useChapterConversion(fileId: string | null): UseChapterConversio
           next[globalIdx] = null;
           return next;
         });
-      } else {
-        throw new Error(data.error ?? `第 ${globalIdx + 1} 章 AI 转换失败`);
+        return; // 转换成功
+      } catch (err) {
+        if (signal.aborted) return; // 用户取消，不重试
+        lastErrorMsg = err instanceof Error ? err.message : String(err);
+
+        if (attempt < MAX_CLIENT_RETRIES) {
+          // 等待后重试（指数退避，用户取消时可提前中断）
+          await new Promise<void>((resolve) => {
+            const timer = setTimeout(resolve, CLIENT_RETRY_DELAY_MS * Math.pow(2, attempt));
+            signal.addEventListener('abort', () => {
+              clearTimeout(timer);
+              resolve();
+            }, { once: true });
+          });
+          if (signal.aborted) return;
+          continue;
+        }
       }
-    } catch (err) {
-      if (signal.aborted) return;
-      const msg = err instanceof Error ? err.message : String(err);
-      setChapterStatuses((prev) => {
-        const next = [...prev];
-        next[globalIdx] = 'failed';
-        return next;
-      });
-      setChapterErrors((prev) => {
-        const next = [...prev];
-        next[globalIdx] = msg;
-        return next;
-      });
-      throw err;
     }
+
+    // 所有重试用尽，标记为失败
+    setChapterStatuses((prev) => {
+      const next = [...prev];
+      next[globalIdx] = 'failed';
+      return next;
+    });
+    setChapterErrors((prev) => {
+      const next = [...prev];
+      next[globalIdx] = lastErrorMsg;
+      return next;
+    });
+    throw new Error(lastErrorMsg);
   }, [templateId, instruction, partialKey]);
 
-  /** AI 转换（分批并发 + 持续推进不中断 + 可取消） */
+  /** AI 转换（滑动窗口并发 + 可取消） */
   const handleConvert = useCallback(async () => {
     if (chapters.length === 0 || !fileId) return;
     setConverting(true);
@@ -261,15 +363,35 @@ export function useChapterConversion(fileId: string | null): UseChapterConversio
       .map((s, i) => (s === 'pending' || s === 'failed' ? i : -1))
       .filter((i) => i >= 0);
 
-    for (let batchStart = 0; batchStart < pendingIndices.length; batchStart += BATCH_SIZE) {
-      if (abort.signal.aborted) break;
-      const batchIndices = pendingIndices.slice(batchStart, batchStart + BATCH_SIZE);
-      await Promise.allSettled(
-        batchIndices.map((globalIdx) =>
-          convertSingleChapter(chapters[globalIdx], globalIdx, abort.signal),
-        ),
-      );
+    if (pendingIndices.length === 0) {
+      setConverting(false);
+      return;
     }
+
+    // 滑动窗口并发：当某个请求完成后，立即启动下一个待处理请求
+    // 比固定批次更高效——快请求不会被慢请求阻塞
+    let nextIdx = 0;
+
+    const worker = async () => {
+      while (!abort.signal.aborted) {
+        // 同步取下一个索引（JS 单线程，无竞态）
+        const idx = nextIdx;
+        nextIdx++;
+        if (idx >= pendingIndices.length) break;
+
+        const globalIdx = pendingIndices[idx];
+        try {
+          await convertSingleChapter(chapters[globalIdx], globalIdx, abort.signal);
+        } catch {
+          // convertSingleChapter 内部已处理状态更新和重试
+        }
+      }
+    };
+
+    const workerCount = Math.min(MAX_CONCURRENT_REQUESTS, pendingIndices.length);
+    await Promise.allSettled(
+      Array.from({ length: workerCount }, () => worker()),
+    );
 
     setConverting(false);
     abortRef.current = null;

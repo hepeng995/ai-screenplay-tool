@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { transformChapterToYaml, withConcurrencyLimit } from '@/lib/ai/mimo';
+import { transformChapterToYaml } from '@/lib/ai/mimo';
 import { withErrorHandler } from '@/lib/api/error-handler';
 
 export const runtime = 'edge';
@@ -47,11 +47,9 @@ export const POST = withErrorHandler<NextRequest>(async (request) => {
   // 构建 Prompt
   const prompt = buildRegeneratePrompt(body.type, body.context, body.instruction);
 
-  const result = await withConcurrencyLimit(() =>
-    transformChapterToYaml(
-      body.type === 'scene' ? '场景重新生成' : '台词重新生成',
-      prompt,
-    ),
+  const result = await transformChapterToYaml(
+    body.type === 'scene' ? '场景重新生成' : '台词重新生成',
+    prompt,
   );
 
   if (!result.success) {

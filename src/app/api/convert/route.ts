@@ -1,15 +1,19 @@
 /**
- * AI 转换 API 路由（Edge Runtime）
+ * AI 转换 API 路由（Node.js Serverless Runtime）
  * T2.3: POST /api/convert
+ *
+ * 支持两种模式：
+ * - 默认模式：返回完整 JSON（向后兼容）
+ * - 流式模式：GET 参数 stream=true，返回 SSE 流
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { transformChapterToYaml, withConcurrencyLimit } from '@/lib/ai/mimo';
+import { transformChapterToYaml, callMimoApiStreaming } from '@/lib/ai/mimo';
 import { withErrorHandler } from '@/lib/api/error-handler';
 import type { TemplateType } from '@/lib/ai/templates';
 
-export const runtime = 'edge';
-export const maxDuration = 25; // Vercel Edge Runtime 限制
+export const runtime = 'nodejs';
+export const maxDuration = 60; // Vercel Serverless Runtime（AI 转换需要较长响应时间）
 
 interface ConvertRequest {
   chapterTitle?: string;
@@ -29,7 +33,7 @@ export const POST = withErrorHandler<NextRequest>(async (request) => {
     );
   }
 
-  // 字数限制（Edge Runtime payload 限制）
+  // 字数限制
   if (body.chapterText.length > 10_000) {
     return NextResponse.json(
       { success: false, error: '单章节文本不能超过 10000 字' },
@@ -42,9 +46,32 @@ export const POST = withErrorHandler<NextRequest>(async (request) => {
   // 限制自定义指令长度，避免过长 payload
   const instruction = typeof body.instruction === 'string' ? body.instruction.slice(0, 500) : undefined;
 
-  const result = await withConcurrencyLimit(() =>
-    transformChapterToYaml(title, body.chapterText, templateId, instruction),
-  );
+  // 流式模式：直接转发 AI SSE 流
+  const useStream = new URL(request.url).searchParams.get('stream') === 'true';
+  if (useStream) {
+    try {
+      const upstreamStream = await callMimoApiStreaming(title, body.chapterText, templateId, instruction);
+
+      return new Response(upstreamStream, {
+        headers: {
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-cache, no-transform',
+          Connection: 'keep-alive',
+          // 允许客户端读取流式进度
+          'X-Stream-Mode': 'true',
+        },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '流式调用失败';
+      return NextResponse.json(
+        { success: false, error: message },
+        { status: 500 },
+      );
+    }
+  }
+
+  // 默认模式：非流式 JSON 响应（向后兼容）
+  const result = await transformChapterToYaml(title, body.chapterText, templateId, instruction);
 
   if (!result.success) {
     return NextResponse.json(result, { status: 500 });
