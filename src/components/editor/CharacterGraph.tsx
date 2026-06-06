@@ -23,25 +23,49 @@ interface GraphEdge {
   weight: number;
 }
 
-/** 从剧本数据中提取角色共现关系 */
+/** 从剧本数据中提取角色共现关系（综合 metadata / characters_present / dialogues 三处来源） */
 function extractGraph(data: Script): { nodes: GraphNode[]; edges: GraphEdge[] } {
   const cooccurrence = new Map<string, Map<string, number>>();
 
-  // 角色出现次数（决定节点大小）
+  // 全角色集合（保证 metadata.characters 中的角色即使没有场景数据也能出现在图谱中）
+  const allCharacters = new Set<string>();
+  for (const c of data.metadata.characters) {
+    if (c) allCharacters.add(c);
+  }
+
+  // 角色在场次数（决定节点大小）
   const appearanceCount = new Map<string, number>();
 
   for (const act of data.acts) {
     for (const scene of act.scenes) {
-      const chars = scene.characters_present.filter(Boolean);
-      // 统计单角色出现次数
-      for (const c of chars) {
+      // 合并 characters_present 和 dialogues 中的角色，确保不遗漏
+      const presentChars = scene.characters_present.filter(Boolean);
+      const dialogueChars = scene.dialogues
+        .map((d) => d.character)
+        .filter((c): c is string => typeof c === 'string' && c.length > 0);
+
+      // 去重合并：该场景涉及的完整角色集
+      const sceneChars = Array.from(new Set([...presentChars, ...dialogueChars]));
+      for (const c of sceneChars) {
+        allCharacters.add(c);
+      }
+
+      // 统计单角色出现次数（在场列表中的角色权重更高）
+      for (const c of presentChars) {
         appearanceCount.set(c, (appearanceCount.get(c) ?? 0) + 1);
       }
+      // dialogues 中但不在 present 中的角色也计一次（权重较低，但至少出现）
+      for (const c of dialogueChars) {
+        if (!presentChars.includes(c)) {
+          appearanceCount.set(c, (appearanceCount.get(c) ?? 0) + 0.5);
+        }
+      }
+
       // 统计两两共现次数
-      for (let i = 0; i < chars.length; i++) {
-        for (let j = i + 1; j < chars.length; j++) {
-          const a = chars[i];
-          const b = chars[j];
+      for (let i = 0; i < sceneChars.length; i++) {
+        for (let j = i + 1; j < sceneChars.length; j++) {
+          const a = sceneChars[i];
+          const b = sceneChars[j];
           if (!cooccurrence.has(a)) cooccurrence.set(a, new Map());
           if (!cooccurrence.has(b)) cooccurrence.set(b, new Map());
           cooccurrence.get(a)!.set(b, (cooccurrence.get(a)!.get(b) ?? 0) + 1);
@@ -51,8 +75,8 @@ function extractGraph(data: Script): { nodes: GraphNode[]; edges: GraphEdge[] } 
     }
   }
 
-  // 构建节点（圆形布局）
-  const characters = Array.from(appearanceCount.keys());
+  // 构建节点（圆形布局）—— 使用全角色集合，而非仅 appearanceCount 中的角色
+  const characters = Array.from(allCharacters);
   const centerX = 250;
   const centerY = 200;
   const radius = Math.min(150, characters.length * 25);
@@ -63,7 +87,7 @@ function extractGraph(data: Script): { nodes: GraphNode[]; edges: GraphEdge[] } 
       id: name,
       x: centerX + radius * Math.cos(angle),
       y: centerY + radius * Math.sin(angle),
-      weight: appearanceCount.get(name) ?? 1,
+      weight: Math.ceil(appearanceCount.get(name) ?? 0),
     };
   });
 
