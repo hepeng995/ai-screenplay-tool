@@ -94,11 +94,33 @@ export function mergeYamlChapters(yamls: string[]): string {
     }
   }
 
-  // 7. 合并 acts：按章节顺序追加
+  // 7. 合并 acts：按章节顺序追加，并重排幕/场编号
+  //    每章 AI 都从 act_number:1 / scene_number:1 开始独立编号，
+  //    直接拼接会导致合并后出现多个"第 1 幕""场景 1"。
+  //    这里对 act_number 做全局连续重排（从 1 递增），
+  //    对每幕内 scene_number 做幕内重排（每幕从 1 递增）。
+  //    用浅拷贝避免改动原始解析对象。
   const acts: unknown[] = [];
+  let actCounter = 1;
   for (const ch of parsed) {
-    if (Array.isArray(ch.acts)) {
-      acts.push(...ch.acts);
+    if (!Array.isArray(ch.acts)) continue;
+    for (const actRaw of ch.acts) {
+      if (actRaw == null || typeof actRaw !== 'object' || Array.isArray(actRaw)) {
+        // 非对象的 act 原样保留（极端兜底）
+        acts.push(actRaw);
+        continue;
+      }
+      const act: Record<string, unknown> = { ...(actRaw as Record<string, unknown>) };
+      act.act_number = actCounter++;
+      if (Array.isArray(act.scenes)) {
+        act.scenes = act.scenes.map((sceneRaw, sceneIdx) => {
+          if (sceneRaw == null || typeof sceneRaw !== 'object' || Array.isArray(sceneRaw)) {
+            return sceneRaw;
+          }
+          return { ...(sceneRaw as Record<string, unknown>), scene_number: sceneIdx + 1 };
+        });
+      }
+      acts.push(act);
     }
   }
 

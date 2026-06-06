@@ -23,6 +23,12 @@ const config: Config = {
           900: '#134e4a',
           950: '#042f2e',
         },
+        // 语义化颜色：映射到 globals.css 中定义的 CSS 变量
+        // 使用方式：bg-surface / text-muted / border-default / bg-accent-bg
+        surface: 'rgb(var(--surface) / <alpha-value>)',
+        muted: 'rgb(var(--text-muted) / <alpha-value>)',
+        'accent-bg': 'rgb(var(--accent-50) / <alpha-value>)',
+        'accent-hover': 'rgb(var(--accent-hover) / <alpha-value>)',
       },
       fontFamily: {
         sans: [

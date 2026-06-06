@@ -3,7 +3,8 @@
  * T2.3: Edge Runtime 兼容的 AI 转换
  */
 
-import { SYSTEM_PROMPT, buildUserPrompt } from './prompt';
+import { SYSTEM_PROMPT, buildUserPrompt, buildSystemPrompt } from './prompt';
+import type { TemplateType } from './templates';
 
 export interface TransformResult {
   success: boolean;
@@ -46,8 +47,9 @@ export function extractYaml(raw: string): string | null {
 /**
  * 调用 mimo API（单次请求）
  */
-async function callMimoApi(chapterTitle: string, chapterText: string): Promise<Response> {
-  const userPrompt = buildUserPrompt(chapterTitle, chapterText);
+async function callMimoApi(chapterTitle: string, chapterText: string, templateId: TemplateType = 'default', instruction?: string): Promise<Response> {
+  const userPrompt = buildUserPrompt(chapterTitle, chapterText, instruction);
+  const systemPrompt = buildSystemPrompt(templateId);
 
   return fetch(`${MIMO_API_URL}/chat/completions`, {
     method: 'POST',
@@ -58,7 +60,7 @@ async function callMimoApi(chapterTitle: string, chapterText: string): Promise<R
     body: JSON.stringify({
       model: MIMO_MODEL,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
       max_tokens: 8192,
@@ -75,6 +77,8 @@ async function callMimoApi(chapterTitle: string, chapterText: string): Promise<R
 export async function transformChapterToYaml(
   chapterTitle: string,
   chapterText: string,
+  templateId: TemplateType = 'default',
+  instruction?: string,
 ): Promise<TransformResult> {
   const startTime = Date.now();
 
@@ -89,7 +93,7 @@ export async function transformChapterToYaml(
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const response = await callMimoApi(chapterTitle, chapterText);
+      const response = await callMimoApi(chapterTitle, chapterText, templateId, instruction);
 
       if (!response.ok) {
         lastError = `API 返回 ${response.status}: ${response.statusText}`;

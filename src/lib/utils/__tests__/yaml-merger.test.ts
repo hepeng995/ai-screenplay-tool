@@ -336,4 +336,38 @@ describe('mergeYamlChapters', () => {
     // 两章的 characters 都被合并
     expect(parsed.data?.metadata.characters).toEqual(['新角色', '角色A']);
   });
+
+  it('多章合并后 act_number 全局连续、各幕 scene_number 从 1 重排', () => {
+    // 模拟 AI 逐章独立编号：每章都从 act_number:1 / scene_number:1 开始
+    const makeCh = (title: string, sceneCount: number) =>
+      dumpYaml({
+        script: { title, source: 's', adapted_at: '2026-06-05' },
+        metadata: { characters: ['角色A'] },
+        acts: [
+          {
+            act_number: 1,
+            title,
+            scenes: Array.from({ length: sceneCount }, (_, i) => ({
+              scene_number: 1, // 故意都写 1，验证合并时会被重排
+              location: `场景${i}`,
+              characters_present: ['角色A'],
+              dialogues: [{ character: '角色A', type: '对白', content: 'x' }],
+            })),
+          },
+        ],
+      });
+
+    const merged = mergeYamlChapters([makeCh('第一章', 2), makeCh('第二章', 1)]);
+    const parsed = validateYaml(merged);
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    const acts = parsed.data!.acts;
+    expect(acts).toHaveLength(2);
+    // act_number 全局连续
+    expect(acts[0].act_number).toBe(1);
+    expect(acts[1].act_number).toBe(2);
+    // 各幕内 scene_number 从 1 重排
+    expect(acts[0].scenes.map((s) => s.scene_number)).toEqual([1, 2]);
+    expect(acts[1].scenes.map((s) => s.scene_number)).toEqual([1]);
+  });
 });

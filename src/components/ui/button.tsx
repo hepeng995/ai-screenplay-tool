@@ -8,11 +8,11 @@ type Size = 'default' | 'sm' | 'lg' | 'icon';
 
 const variantClasses: Record<Variant, string> = {
   default:
-    'bg-teal-600 text-white hover:bg-teal-700 active:scale-[0.98] dark:bg-teal-500 dark:hover:bg-teal-400',
+    'bg-teal-600 text-white hover:bg-teal-700 hover:shadow-md hover:shadow-teal-600/20 active:scale-[0.98] dark:bg-teal-500 dark:hover:bg-teal-400 dark:hover:shadow-teal-500/20',
   destructive:
-    'bg-red-600 text-white hover:bg-red-700 active:scale-[0.98]',
+    'bg-red-600 text-white hover:bg-red-700 hover:shadow-md hover:shadow-red-600/20 active:scale-[0.98]',
   outline:
-    'border border-zinc-300 bg-white hover:bg-zinc-50 text-zinc-700 active:scale-[0.98] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800',
+    'border border-zinc-300 bg-white hover:bg-zinc-50 hover:border-zinc-400 active:scale-[0.98] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:border-zinc-600',
   secondary:
     'bg-zinc-100 text-zinc-900 hover:bg-zinc-200 active:scale-[0.98] dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700',
   ghost:

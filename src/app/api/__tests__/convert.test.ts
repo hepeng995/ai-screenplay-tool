@@ -102,8 +102,8 @@ describe('POST /api/convert', () => {
 
     await POST(makeRequest({ chapterText: '内容' }) as never);
 
-    // 验证 transformChapterToYaml 第一个参数为默认标题
-    expect(mockedTransform).toHaveBeenCalledWith('未命名章节', '内容');
+    // 验证 transformChapterToYaml 第一个参数为默认标题，第三个参数为默认模板，第四个为 instruction（未传则为 undefined）
+    expect(mockedTransform).toHaveBeenCalledWith('未命名章节', '内容', 'default', undefined);
   });
 
   it('JSON 解析失败应返回 500', async () => {

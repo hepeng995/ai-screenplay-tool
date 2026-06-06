@@ -2,7 +2,10 @@ import { Github, PenLine } from 'lucide-react';
 
 export function Footer() {
   return (
-    <footer className="border-t border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950">
+    <footer className="relative border-t border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950">
+      {/* 顶部品牌渐变色带 */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-teal-500/40 to-transparent" />
+
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -25,9 +28,9 @@ export function Footer() {
             href="https://github.com/hepeng995/ai-screenplay-tool"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-700 transition-colors dark:text-zinc-400 dark:hover:text-zinc-200"
+            className="group flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-700 transition-colors dark:text-zinc-400 dark:hover:text-zinc-200"
           >
-            <Github className="h-4 w-4" />
+            <Github className="h-4 w-4 transition-transform duration-200 group-hover:rotate-12" />
             <span className="hidden sm:inline">GitHub</span>
           </a>
         </div>

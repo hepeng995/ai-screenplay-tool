@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SYSTEM_PROMPT, buildUserPrompt } from '../../ai/prompt';
+import { SYSTEM_PROMPT, buildUserPrompt, CHAPTER_TEXT_TRUNCATE_LIMIT } from '../../ai/prompt';
 
 describe('AI Prompt', () => {
   describe('SYSTEM_PROMPT', () => {
@@ -57,7 +57,7 @@ describe('AI Prompt', () => {
     });
 
     it('超长文本被截断', () => {
-      const longText = 'A'.repeat(5000);
+      const longText = 'A'.repeat(CHAPTER_TEXT_TRUNCATE_LIMIT + 1000);
       const prompt = buildUserPrompt('测试', longText);
       expect(prompt).toContain('[文本已截断]');
       expect(prompt.length).toBeLessThan(longText.length + 1000);

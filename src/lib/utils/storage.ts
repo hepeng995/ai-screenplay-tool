@@ -52,13 +52,20 @@ export function saveProject(project: Project): void {
   localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
 }
 
-/** 删除项目 */
+/** 删除项目（软删除：移入回收站，数据保留可恢复） */
 export function deleteProject(id: string): void {
   if (typeof window === 'undefined') return;
+  const project = loadProject(id);
+  if (!project) return;
+
+  // 从项目列表移除
   const projects = listProjects().filter((p) => p.id !== id);
   localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
-  // 同时删除暂存的文本
-  localStorage.removeItem(`${NOVEL_PREFIX}${id}`);
+
+  // 移入回收站（保留 novel + yaml 数据）
+  const trash = loadTrashRaw();
+  trash.push({ ...project, deletedAt: new Date().toISOString() });
+  localStorage.setItem(TRASH_KEY, JSON.stringify(trash));
 }
 
 /** 重命名项目（不修改其它字段，仅 name 和 updatedAt） */
@@ -274,4 +281,78 @@ export function getStorageUsage(): { used: number; total: number } {
   } catch {
     return { used: 0, total: 5 * 1024 * 1024 };
   }
+}
+
+/* ========== 回收站（软删除） ========== */
+
+/** 回收站中的项目（带删除时间） */
+export interface TrashedProject extends Project {
+  deletedAt: string;
+}
+
+const TRASH_KEY = 'ai-script-trash';
+
+function loadTrashRaw(): TrashedProject[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(TRASH_KEY);
+    return raw ? (JSON.parse(raw) as TrashedProject[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** 列出回收站中的所有项目（按删除时间倒序） */
+export function listTrash(): TrashedProject[] {
+  return loadTrashRaw().sort((a, b) => b.deletedAt.localeCompare(a.deletedAt));
+}
+
+/** 从回收站还原项目 */
+export function restoreProject(id: string): boolean {
+  if (typeof window === 'undefined') return false;
+  const trash = loadTrashRaw();
+  const idx = trash.findIndex((p) => p.id === id);
+  if (idx < 0) return false;
+
+  // 从 trash 数组取出，去掉 deletedAt
+  const { deletedAt: _, ...project } = trash[idx];
+  trash.splice(idx, 1);
+  localStorage.setItem(TRASH_KEY, JSON.stringify(trash));
+
+  // 重新写回项目列表（novel + yaml 数据未被删除，仍在 localStorage）
+  saveProject(project);
+  return true;
+}
+
+/** 彻底删除一个回收站项目（连同关联数据） */
+export function permanentlyDelete(id: string): void {
+  if (typeof window === 'undefined') return;
+  const trash = loadTrashRaw().filter((p) => p.id !== id);
+  localStorage.setItem(TRASH_KEY, JSON.stringify(trash));
+  // 删除关联的文本数据
+  localStorage.removeItem(`${NOVEL_PREFIX}${id}`);
+  localStorage.removeItem(`yaml-${id}`);
+}
+
+/** 清空回收站（彻底删除所有已软删项目及其关联数据） */
+export function emptyTrash(): number {
+  if (typeof window === 'undefined') return 0;
+  const trash = loadTrashRaw();
+  for (const p of trash) {
+    localStorage.removeItem(`${NOVEL_PREFIX}${p.id}`);
+    localStorage.removeItem(`yaml-${p.id}`);
+  }
+  localStorage.setItem(TRASH_KEY, '[]');
+  return trash.length;
+}
+
+/* ========== 云端备份 / 恢复 ========== */
+
+/**
+ * 将全部项目数据序列化为 JSON 字符串（供上传到七牛云等云存储）
+ * 复用 exportProjects 的序列化格式
+ */
+export function serializeAllProjects(): string {
+  const projects = listProjects();
+  return exportProjects(projects.map((p) => p.id));
 }

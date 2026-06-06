@@ -4,6 +4,8 @@
  */
 
 export interface Chapter {
+  /** 稳定标识（基于原始切分顺序生成，删除/重排后保持不变，用于 localStorage 索引） */
+  id: string;
   index: number;
   title: string;
   content: string;
@@ -86,6 +88,7 @@ function buildChapters(text: string, matches: { index: number; title: string }[]
     const content = rawContent; // 含标题行
 
     chapters.push({
+      id: `c-${i}`,
       index: i + 1,
       title: matches[i].title,
       content,

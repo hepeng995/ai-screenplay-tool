@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { CheckCircle2, XCircle, Info, X } from 'lucide-react';
 import type { ToastItem } from '@/lib/utils/toast';
 import { TOAST_EVENT } from '@/lib/utils/toast';
@@ -15,10 +16,11 @@ const toastStyles: Record<ToastItem['type'], { bg: string; icon: typeof CheckCir
 // 最多保留的 Toast 数量，防止连续触发时 DOM 堆积
 const MAX_TOASTS = 5;
 
-// 单个 Toast 条目
+// 单个 Toast 条目（带入场/退场动画）
 function ToastEntry({ item, onDismiss }: { item: ToastItem; onDismiss: (id: number) => void }) {
   const style = toastStyles[item.type];
   const Icon = style.icon;
+  const reduce = useReducedMotion();
 
   useEffect(() => {
     const timer = setTimeout(() => onDismiss(item.id), item.duration);
@@ -26,7 +28,12 @@ function ToastEntry({ item, onDismiss }: { item: ToastItem; onDismiss: (id: numb
   }, [item.id, item.duration, onDismiss]);
 
   return (
-    <div
+    <motion.div
+      layout
+      initial={reduce ? false : { opacity: 0, x: 80, scale: 0.95 }}
+      animate={{ opacity: 1, x: 0, scale: 1 }}
+      exit={reduce ? { opacity: 0 } : { opacity: 0, x: 80, scale: 0.95 }}
+      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
       data-testid={`toast-${item.type}`}
       className={`flex items-start gap-2 rounded-lg border px-4 py-3 shadow-md min-w-[280px] max-w-[400px] backdrop-blur-sm ${style.bg}`}
     >
@@ -38,7 +45,7 @@ function ToastEntry({ item, onDismiss }: { item: ToastItem; onDismiss: (id: numb
       >
         <X className="h-4 w-4" />
       </button>
-    </div>
+    </motion.div>
   );
 }
 
@@ -56,9 +63,9 @@ export function ToastContainer() {
     return () => window.removeEventListener(TOAST_EVENT, handler);
   }, []);
 
-  const dismiss = (id: number) => {
+  const dismiss = useCallback((id: number) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
-  };
+  }, []);
 
   if (toasts.length === 0) return null;
 
@@ -67,9 +74,11 @@ export function ToastContainer() {
       data-testid="toast-container"
       className="fixed top-4 right-4 z-50 flex flex-col gap-2"
     >
-      {toasts.map((item) => (
-        <ToastEntry key={item.id} item={item} onDismiss={dismiss} />
-      ))}
+      <AnimatePresence mode="popLayout">
+        {toasts.map((item) => (
+          <ToastEntry key={item.id} item={item} onDismiss={dismiss} />
+        ))}
+      </AnimatePresence>
     </div>
   );
 }
