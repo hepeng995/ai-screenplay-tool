@@ -10,6 +10,14 @@ const STATIC_ASSETS = [
   '/icon.svg',
 ];
 
+// 离线兜底响应（HTML 格式，与页面风格一致）
+const OFFLINE_PAGE = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>离线 - AI 剧本工坊</title>
+<style>body{font-family:system-ui;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;color:#666}
+.card{text-align:center;padding:2rem}h1{font-size:1.5rem;margin-bottom:.5rem}p{color:#999}</style>
+</head><body><div class="card"><h1>📡 网络不可用</h1><p>请检查网络连接后刷新页面</p></div></body></html>`;
+
 // 安装：预缓存关键页面
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -32,10 +40,27 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+/**
+ * 从缓存中查找匹配的 Response
+ * 优先精确匹配，找不到时忽略 query 参数再匹配一次
+ */
+async function findInCache(request) {
+  const cache = await caches.open(CACHE_NAME);
+  // 1. 精确匹配
+  let cached = await cache.match(request);
+  if (cached) return cached;
+  // 2. 忽略 query 参数匹配（/editor?id=xxx → /editor）
+  cached = await cache.match(request, { ignoreSearch: true });
+  return cached ?? null;
+}
+
 // 请求拦截
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
+
+  // 忽略非 http/https 协议的请求（如 chrome-extension://）
+  if (!url.protocol.startsWith('http')) return;
 
   // API 请求：Network-first（始终尝试网络，失败则返回离线提示）
   if (url.pathname.startsWith('/api/')) {
@@ -50,20 +75,26 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 忽略非 http/https 协议的请求（如 chrome-extension://）
-  if (!url.protocol.startsWith('http')) return;
-
   // 静态资源 & 页面：Network-first，离线时从缓存读取
   event.respondWith(
     fetch(request)
       .then((response) => {
-        // 成功获取后缓存一份
-        if (response.status === 200) {
+        // 成功获取后缓存一份（仅缓存同源 GET 请求的 200 响应）
+        if (response.status === 200 && request.method === 'GET') {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
         }
         return response;
       })
-      .catch(() => caches.match(request))
+      .catch(async () => {
+        // 尝试从缓存中查找（精确 + 忽略 query）
+        const cached = await findInCache(request);
+        if (cached) return cached;
+        // 兜底：返回离线页面，避免 respondWith(undefined) 崩溃
+        return new Response(OFFLINE_PAGE, {
+          headers: { 'Content-Type': 'text/html; charset=utf-8' },
+          status: 503,
+        });
+      })
   );
 });

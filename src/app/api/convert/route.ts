@@ -50,7 +50,12 @@ export const POST = withErrorHandler<NextRequest>(async (request) => {
   const useStream = new URL(request.url).searchParams.get('stream') === 'true';
   if (useStream) {
     try {
+      console.info(`[convert] 开始流式转换: "${title}" (${body.chapterText.length} 字, template=${templateId})`);
+      const startTime = Date.now();
+
       const upstreamStream = await callMimoApiStreaming(title, body.chapterText, templateId, instruction);
+
+      console.info(`[convert] 上游 SSE 连接建立, 耗时 ${Date.now() - startTime}ms`);
 
       return new Response(upstreamStream, {
         headers: {
@@ -63,6 +68,7 @@ export const POST = withErrorHandler<NextRequest>(async (request) => {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : '流式调用失败';
+      console.error(`[convert] 流式转换失败: "${title}" → ${message}`);
       return NextResponse.json(
         { success: false, error: message },
         { status: 500 },
@@ -71,11 +77,14 @@ export const POST = withErrorHandler<NextRequest>(async (request) => {
   }
 
   // 默认模式：非流式 JSON 响应（向后兼容）
+  console.info(`[convert] 开始非流式转换: "${title}" (${body.chapterText.length} 字)`);
   const result = await transformChapterToYaml(title, body.chapterText, templateId, instruction);
 
   if (!result.success) {
+    console.error(`[convert] 非流式转换失败: "${title}" → ${result.error}`);
     return NextResponse.json(result, { status: 500 });
   }
 
+  console.info(`[convert] 转换完成: "${title}", 耗时 ${result.elapsed}ms`);
   return NextResponse.json(result, { status: 200 });
 });
