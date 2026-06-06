@@ -167,6 +167,10 @@ export async function callMimoApiStreaming(
   templateId: TemplateType = 'default',
   instruction?: string,
 ): Promise<ReadableStream<Uint8Array>> {
+  if (!MIMO_API_KEY) {
+    throw new Error('MIMO_API_KEY 未配置');
+  }
+
   const userPrompt = buildUserPrompt(chapterTitle, chapterText, instruction);
   const systemPrompt = buildSystemPrompt(templateId);
 
