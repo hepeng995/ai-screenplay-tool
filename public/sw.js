@@ -50,6 +50,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // 忽略非 http/https 协议的请求（如 chrome-extension://）
+  if (!url.protocol.startsWith('http')) return;
+
   // 静态资源 & 页面：Network-first，离线时从缓存读取
   event.respondWith(
     fetch(request)
