@@ -69,6 +69,26 @@ describe('validateYaml', () => {
     expect(result.errors).toBeDefined();
   });
 
+  it('被 ```yaml 代码块包裹的 YAML 应自动去围栏并校验通过', () => {
+    const wrapped = '```yaml\n' + validYaml.trim() + '\n```';
+    const result = validateYaml(wrapped);
+    expect(result.success).toBe(true);
+    expect(result.data).toBeDefined();
+  });
+
+  it('被 ``` （无语言标签）代码块包裹的 YAML 应自动去围栏并校验通过', () => {
+    const wrapped = '```\n' + validYaml.trim() + '\n```';
+    const result = validateYaml(wrapped);
+    expect(result.success).toBe(true);
+    expect(result.data).toBeDefined();
+  });
+
+  it('YAML 根节点为数组时返回根节点错误', () => {
+    const result = validateYaml('- item1\n- item2');
+    expect(result.success).toBe(false);
+    expect(result.errors?.[0]?.message).toBe('YAML 根节点必须是对象');
+  });
+
   it('未知字段被 passthrough 模式放行（AI 输出宽容校验）', () => {
     const yaml = validYaml.replace(
       'script:',
