@@ -219,15 +219,6 @@ function EditorContent() {
   // 七牛云下载确认（本地有内容时先确认）
   const [showCloudDownloadConfirm, setShowCloudDownloadConfirm] = useState(false);
 
-  const handleCloudDownloadClick = useCallback(() => {
-    // 本地有内容时先弹出确认，防止覆盖
-    if (yamlContent.trim()) {
-      setShowCloudDownloadConfirm(true);
-    } else {
-      handleCloudDownload();
-    }
-  }, [yamlContent]);
-
   const handleCloudDownload = useCallback(async () => {
     setShowCloudDownloadConfirm(false);
     if (!projectId) return;
@@ -258,6 +249,15 @@ function EditorContent() {
       setTimeout(() => { setCloudStatus('idle'); setCloudMessage(''); }, 5000);
     }
   }, [projectId]);
+
+  const handleCloudDownloadClick = useCallback(() => {
+    // 本地有内容时先弹出确认，防止覆盖
+    if (yamlContent.trim()) {
+      setShowCloudDownloadConfirm(true);
+    } else {
+      handleCloudDownload();
+    }
+  }, [yamlContent, handleCloudDownload]);
 
   /** 局部重新生成（场景/台词）：调用 AI 后按定位就地替换对应节点 */
   const handleRegenerate = useCallback(async (type: 'scene' | 'dialogue', context: string, target: RegenerateTarget) => {
